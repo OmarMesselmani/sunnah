@@ -1,0 +1,156 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// نموذج الرواة
+model Narrator {
+  id               Int      @id @default(autoincrement())
+  fullName         String   @db.VarChar(255)
+  kunyah           String?  @db.VarChar(255)
+  laqab            String?  @db.VarChar(255)
+  alternativeNames String?  @db.Text
+  deathYear        Int?
+  generation       String   @db.VarChar(50)
+  biography        String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // العلاقات
+  narratedHadiths  HadithNarrator[]
+  musnadHadiths    Hadith[]         @relation("MusnadSahabi")
+  studentsRelation NarratorRelation[] @relation("Teacher")
+  teachersRelation NarratorRelation[] @relation("Student")
+
+  @@index([fullName])
+  @@index([generation])
+}
+
+// نموذج المصادر
+model Source {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  author    String?  @db.VarChar(255)
+  fullName  String?  @db.Text
+  createdAt DateTime @default(now())
+
+  // العلاقات
+  books   Book[]
+  hadiths Hadith[]
+}
+
+// نموذج الكتب
+model Book {
+  id         Int      @id @default(autoincrement())
+  sourceId   Int
+  name       String   @db.VarChar(255)
+  bookNumber Int?
+  createdAt  DateTime @default(now())
+
+  // العلاقات
+  source   Source    @relation(fields: [sourceId], references: [id])
+  chapters Chapter[]
+  hadiths  Hadith[]
+
+  @@index([sourceId])
+}
+
+// نموذج الأبواب
+model Chapter {
+  id            Int      @id @default(autoincrement())
+  bookId        Int
+  name          String   @db.Text
+  chapterNumber Int?
+  createdAt     DateTime @default(now())
+
+  // العلاقات
+  book    Book     @relation(fields: [bookId], references: [id])
+  hadiths Hadith[]
+
+  @@index([bookId])
+}
+
+// نموذج الأحاديث
+model Hadith {
+  id             Int      @id @default(autoincrement())
+  sourceId       Int
+  bookId         Int?
+  chapterId      Int?
+  hadithNumber   String   @db.VarChar(50)
+  sanad          String   @db.Text
+  matn           String   @db.Text
+  musnadSahabiId Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // العلاقات
+  source        Source           @relation(fields: [sourceId], references: [id])
+  book          Book?            @relation(fields: [bookId], references: [id])
+  chapter       Chapter?         @relation(fields: [chapterId], references: [id])
+  musnadSahabi  Narrator?        @relation("MusnadSahabi", fields: [musnadSahabiId], references: [id])
+  narrators     HadithNarrator[]
+  manualReviews ManualReview[]
+
+  @@index([sourceId])
+  @@index([musnadSahabiId])
+  @@fulltext([matn])
+}
+
+// نموذج ربط الأحاديث بالرواة
+model HadithNarrator {
+  id            Int      @id @default(autoincrement())
+  hadithId      Int
+  narratorId    Int
+  orderInChain  Int
+  narrationType String?  @db.VarChar(50)
+  createdAt     DateTime @default(now())
+
+  // العلاقات
+  hadith   Hadith   @relation(fields: [hadithId], references: [id], onDelete: Cascade)
+  narrator Narrator @relation(fields: [narratorId], references: [id])
+
+  @@unique([hadithId, narratorId, orderInChain])
+  @@index([hadithId])
+  @@index([narratorId])
+}
+
+// نموذج علاقات الرواة
+model NarratorRelation {
+  id            Int      @id @default(autoincrement())
+  narratorId    Int
+  teacherId     Int
+  relationCount Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // العلاقات
+  narrator Narrator @relation("Student", fields: [narratorId], references: [id])
+  teacher  Narrator @relation("Teacher", fields: [teacherId], references: [id])
+
+  @@unique([narratorId, teacherId])
+  @@index([narratorId])
+  @@index([teacherId])
+}
+
+// نموذج المراجعات اليدوية
+model ManualReview {
+  id            Int      @id @default(autoincrement())
+  hadithId      Int
+  reviewerNotes String?  @db.Text
+  isVerified    Boolean  @default(false)
+  reviewedAt    DateTime @default(now())
+
+  // العلاقات
+  hadith Hadith @relation(fields: [hadithId], references: [id])
+
+  @@index([hadithId])
+  @@index([isVerified])
+}
