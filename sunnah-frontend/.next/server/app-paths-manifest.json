@@ -1,3 +1,6 @@
 {
-  "/page": "app/page.js"
+  "/narrators/[id]/page": "app/narrators/[id]/page.js",
+  "/hadiths/[id]/page": "app/hadiths/[id]/page.js",
+  "/page": "app/page.js",
+  "/narrators/page": "app/narrators/page.js"
 }
