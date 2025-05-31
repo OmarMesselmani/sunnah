@@ -25,6 +25,11 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/hadiths/[id]/page.js"
+    ],
+    "/admin/add-hadith/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/admin/add-hadith/page.js"
     ]
   }
 }

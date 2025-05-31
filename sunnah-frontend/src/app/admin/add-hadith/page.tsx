@@ -336,13 +336,13 @@ export default function BatchAddHadithPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-900 py-8 text-gray-100">
       <div className="container mx-auto px-4 max-w-6xl">
         {/* Header */}
         <div className="mb-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-emerald-600 hover:underline mb-4"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 mb-4"
           >
             <ChevronLeft size={20} />
             العودة للرئيسية
@@ -350,26 +350,26 @@ export default function BatchAddHadithPage() {
           
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">إضافة دفعة أحاديث</h1>
-              <p className="text-gray-600 mt-2">
+              <h1 className="text-3xl font-bold text-white">إضافة دفعة أحاديث</h1>
+              <p className="text-gray-300 mt-2">
                 يمكنك إضافة حتى 5 أحاديث في المرة الواحدة
               </p>
             </div>
             
             {/* Statistics */}
-            <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-700">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-                  <div className="text-sm text-gray-600">إجمالي</div>
+                  <div className="text-2xl font-bold text-white">{stats.total}</div>
+                  <div className="text-sm text-gray-300">إجمالي</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-purple-600">{stats.analyzed}</div>
-                  <div className="text-sm text-gray-600">محلل</div>
+                  <div className="text-2xl font-bold text-purple-400">{stats.analyzed}</div>
+                  <div className="text-sm text-gray-300">محلل</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-600">{stats.ready}</div>
-                  <div className="text-sm text-gray-600">جاهز</div>
+                  <div className="text-2xl font-bold text-emerald-400">{stats.ready}</div>
+                  <div className="text-sm text-gray-300">جاهز</div>
                 </div>
               </div>
             </div>
@@ -377,11 +377,11 @@ export default function BatchAddHadithPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex flex-wrap gap-3">
+        <div className="bg-gray-800 rounded-lg shadow-md p-4 mb-6 flex flex-wrap gap-3 border border-gray-700">
           <button
             onClick={addHadith}
             disabled={hadiths.length >= 5}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             <Plus size={20} />
             إضافة حديث جديد
@@ -408,7 +408,7 @@ export default function BatchAddHadithPage() {
           <button
             onClick={saveAllHadiths}
             disabled={isSavingAll || stats.ready === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 mr-auto"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 mr-auto"
           >
             {isSavingAll ? (
               <>
@@ -427,31 +427,31 @@ export default function BatchAddHadithPage() {
         {/* Hadiths List */}
         <div className="space-y-4">
           {hadiths.map((hadith, index) => (
-            <div key={hadith.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div key={hadith.id} className="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700">
               {/* Hadith Header */}
               <div 
-                className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
+                className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 ${
                   hadith.isAnalyzed && hadith.extractedNarrators.every(n => n.matchedNarratorId)
-                    ? 'bg-green-50' : ''
+                    ? 'bg-green-900/20' : ''
                 }`}
                 onClick={() => toggleExpand(hadith.id)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center font-bold">
+                    <div className="w-10 h-10 bg-blue-900/30 text-blue-400 rounded-full flex items-center justify-center font-bold">
                       {index + 1}
                     </div>
                     <div>
-                      <div className="font-semibold">
+                      <div className="font-semibold text-white">
                         حديث {hadith.hadithNumber || '(بدون رقم)'}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm">
                         {hadith.isAnalyzed ? (
-                          <span className="text-green-600">
+                          <span className="text-emerald-400">
                             ✓ محلل ({hadith.extractedNarrators.length} راوي)
                           </span>
                         ) : (
-                          <span className="text-gray-500">غير محلل</span>
+                          <span className="text-gray-400">غير محلل</span>
                         )}
                       </div>
                     </div>
@@ -463,7 +463,7 @@ export default function BatchAddHadithPage() {
                         e.stopPropagation();
                         duplicateHadith(hadith.id);
                       }}
-                      className="p-2 text-gray-500 hover:text-emerald-600"
+                      className="p-2 text-gray-400 hover:text-blue-400"
                       title="نسخ الحديث"
                     >
                       <Copy size={18} />
@@ -473,7 +473,7 @@ export default function BatchAddHadithPage() {
                         e.stopPropagation();
                         removeHadith(hadith.id);
                       }}
-                      className="p-2 text-gray-500 hover:text-red-600"
+                      className="p-2 text-gray-400 hover:text-red-400"
                     >
                       <X size={18} />
                     </button>
@@ -487,13 +487,13 @@ export default function BatchAddHadithPage() {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
                         المصدر
                       </label>
                       <select
                         value={hadith.sourceId}
                         onChange={(e) => updateHadith(hadith.id, { sourceId: Number(e.target.value) })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
                         <option value={1}>صحيح البخاري</option>
                         <option value={2}>صحيح مسلم</option>
@@ -501,7 +501,7 @@ export default function BatchAddHadithPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
                         رقم الحديث
                       </label>
                       <input
@@ -509,13 +509,13 @@ export default function BatchAddHadithPage() {
                         value={hadith.hadithNumber}
                         onChange={(e) => updateHadith(hadith.id, { hadithNumber: e.target.value })}
                         placeholder="مثال: 1234"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   </div>
 
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
                       السند
                     </label>
                     <textarea
@@ -523,7 +523,7 @@ export default function BatchAddHadithPage() {
                       onChange={(e) => updateHadith(hadith.id, { sanad: e.target.value })}
                       placeholder="حدثنا..."
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       onClick={() => analyzeSingleHadith(hadith.id)}
@@ -536,7 +536,7 @@ export default function BatchAddHadithPage() {
                   </div>
 
                   {hadith.analysisError && (
-                    <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-lg text-sm">
+                    <div className="mb-4 bg-red-900/20 border border-red-800 text-red-400 px-3 py-2 rounded-lg text-sm">
                       <AlertCircle size={16} className="inline mr-1" />
                       {hadith.analysisError}
                     </div>
@@ -544,24 +544,24 @@ export default function BatchAddHadithPage() {
 
                   {/* Extracted Narrators */}
                   {hadith.extractedNarrators.length > 0 && (
-                    <div className="mb-4 bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-semibold text-sm mb-3">سلسلة الرواة:</h4>
+                    <div className="mb-4 bg-gray-700 rounded-lg p-4 border border-gray-600">
+                      <h4 className="font-semibold text-sm mb-3 text-white">سلسلة الرواة:</h4>
                       <div className="space-y-2">
                         {hadith.extractedNarrators.map((narrator, nIndex) => (
                           <div key={nIndex} className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">
+                            <div className="w-6 h-6 bg-blue-900/30 text-blue-400 rounded-full flex items-center justify-center text-xs font-bold">
                               {narrator.order}
                             </div>
                             <input
                               type="text"
                               value={narrator.name}
                               onChange={(e) => updateNarratorInHadith(hadith.id, nIndex, { name: e.target.value })}
-                              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                              className="flex-1 px-2 py-1 bg-gray-600 border border-gray-500 text-white rounded text-sm focus:ring-1 focus:ring-blue-500"
                             />
                             <select
                               value={narrator.narrationType || ''}
                               onChange={(e) => updateNarratorInHadith(hadith.id, nIndex, { narrationType: e.target.value })}
-                              className="px-2 py-1 border border-gray-300 rounded text-sm"
+                              className="px-2 py-1 bg-gray-600 border border-gray-500 text-white rounded text-sm focus:ring-1 focus:ring-blue-500"
                             >
                               <option value="">-</option>
                               <option value="حدثنا">حدثنا</option>
@@ -570,13 +570,13 @@ export default function BatchAddHadithPage() {
                               <option value="قال">قال</option>
                             </select>
                             {narrator.matchedNarratorId ? (
-                              <span className="text-green-600 text-sm">
+                              <span className="text-emerald-400 text-sm">
                                 ✓ {narrator.matchedNarratorName}
                               </span>
                             ) : (
                               <button
                                 onClick={() => searchSingleNarrator(hadith.id, nIndex)}
-                                className="text-emerald-600 hover:underline text-sm"
+                                className="text-blue-400 hover:text-blue-300 text-sm"
                               >
                                 <Search size={14} className="inline" /> بحث
                               </button>
@@ -588,7 +588,7 @@ export default function BatchAddHadithPage() {
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
                       المتن
                     </label>
                     <textarea
@@ -596,7 +596,7 @@ export default function BatchAddHadithPage() {
                       onChange={(e) => updateHadith(hadith.id, { matn: e.target.value })}
                       placeholder="نص الحديث..."
                       rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -607,11 +607,11 @@ export default function BatchAddHadithPage() {
 
         {/* Empty State */}
         {hadiths.length === 0 && (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <p className="text-gray-600 mb-4">لا توجد أحاديث. ابدأ بإضافة حديث جديد.</p>
+          <div className="bg-gray-800 rounded-lg shadow-md p-12 text-center border border-gray-700">
+            <p className="text-gray-300 mb-4">لا توجد أحاديث. ابدأ بإضافة حديث جديد.</p>
             <button
               onClick={addHadith}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Plus size={20} />
               إضافة أول حديث
