@@ -1,7 +1,3 @@
 {
-  "/page": "app/page.js",
-  "/narrators/page": "app/narrators/page.js",
-  "/narrators/[id]/page": "app/narrators/[id]/page.js",
-  "/hadiths/[id]/page": "app/hadiths/[id]/page.js",
   "/admin/add-hadith/page": "app/admin/add-hadith/page.js"
 }

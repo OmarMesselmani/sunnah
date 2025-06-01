@@ -17,18 +17,8 @@ import {
   ChevronUp,
   Hash
 } from 'lucide-react';
-import { analyzeIsnad, generateSearchQueries } from '@/lib/gemma-api';
+import { analyzeIsnad, generateSearchQueries, ExtractedNarrator } from '@/lib/gemini-api';
 import { getNarrators } from '@/lib/api';
-
-interface ExtractedNarrator {
-  name: string;
-  order: number;
-  narrationType?: string;
-  possibleVariations?: string[];
-  matchedNarratorId?: number;
-  matchedNarratorName?: string;
-  isConfirmed?: boolean;
-}
 
 interface HadithEntry {
   id: string; // temporary ID for UI
@@ -81,23 +71,6 @@ export default function BatchAddHadithPage() {
     setHadiths([...hadiths, newHadith]);
   };
 
-  // حذف حديث
-  const removeHadith = (id: string) => {
-    setHadiths(hadiths.filter(h => h.id !== id));
-  };
-
-  // تحديث بيانات حديث
-  const updateHadith = (id: string, updates: Partial<HadithEntry>) => {
-    setHadiths(hadiths.map(h => h.id === id ? { ...h, ...updates } : h));
-  };
-
-  // توسيع/طي حديث
-  const toggleExpand = (id: string) => {
-    setHadiths(hadiths.map(h => 
-      h.id === id ? { ...h, isExpanded: !h.isExpanded } : h
-    ));
-  };
-
   // تحليل سند واحد
   const analyzeSingleHadith = async (hadithId: string) => {
     const hadith = hadiths.find(h => h.id === hadithId);
@@ -124,8 +97,9 @@ export default function BatchAddHadithPage() {
       });
     } catch (error) {
       updateHadith(hadithId, {
-        analysisError: 'خطأ في تحليل السند. تأكد من تشغيل Ollama'
+        analysisError: 'خطأ في تحليل السند. تأكد من وجود اتصال بالإنترنت وصلاحية مفتاح API'
       });
+      console.error('Error analyzing isnad:', error);
     }
   };
 
@@ -262,9 +236,9 @@ export default function BatchAddHadithPage() {
           narrationType: n.narrationType
         }));
 
-        // تحديد الصحابي (آخر راوي عادة)
-        const lastNarrator = hadith.extractedNarrators[hadith.extractedNarrators.length - 1];
-        const musnadSahabiId = lastNarrator?.matchedNarratorId;
+        // تحديد الصحابي (الراوي الأول بعد عكس الترتيب)
+        const sahabiNarrator = hadith.extractedNarrators[0]; // الصحابي الآن هو الراوي الأول
+        const musnadSahabiId = sahabiNarrator?.matchedNarratorId;
 
         const hadithData = {
           sourceId: hadith.sourceId,
@@ -322,6 +296,18 @@ export default function BatchAddHadithPage() {
     }
   };
 
+  // تحديث بيانات حديث
+  const updateHadith = (id: string, updates: Partial<HadithEntry>) => {
+    setHadiths(hadiths.map(h => h.id === id ? { ...h, ...updates } : h));
+  };
+
+  // توسيع/طي حديث
+  const toggleExpand = (id: string) => {
+    setHadiths(hadiths.map(h => 
+      h.id === id ? { ...h, isExpanded: !h.isExpanded } : h
+    ));
+  };
+
   // حساب الإحصائيات
   const stats = {
     total: hadiths.length,
@@ -333,6 +319,11 @@ export default function BatchAddHadithPage() {
       h.isAnalyzed &&
       h.extractedNarrators.every(n => n.matchedNarratorId)
     ).length
+  };
+
+  // حذف حديث
+  const removeHadith = (id: string) => {
+    setHadiths(hadiths.filter(h => h.id !== id));
   };
 
   return (
@@ -545,7 +536,9 @@ export default function BatchAddHadithPage() {
                   {/* Extracted Narrators */}
                   {hadith.extractedNarrators.length > 0 && (
                     <div className="mb-4 bg-gray-700 rounded-lg p-4 border border-gray-600">
-                      <h4 className="font-semibold text-sm mb-3 text-white">سلسلة الرواة:</h4>
+                      <h4 className="font-semibold text-sm mb-3 text-white">
+                        سلسلة الرواة (1: الصحابي، والأرقام التالية لمن بعده):
+                      </h4>
                       <div className="space-y-2">
                         {hadith.extractedNarrators.map((narrator, nIndex) => (
                           <div key={nIndex} className="flex items-center gap-2">
