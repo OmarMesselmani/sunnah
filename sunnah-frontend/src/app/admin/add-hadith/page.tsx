@@ -8,14 +8,12 @@ import {
   Brain, 
   ChevronLeft, 
   AlertCircle,
-  CheckCircle,
   Loader2,
   Plus,
   X,
   Copy,
   ChevronDown,
-  ChevronUp,
-  Hash
+  ChevronUp
 } from 'lucide-react';
 import { analyzeIsnad, generateSearchQueries, ExtractedNarrator } from '@/lib/gemini-api';
 import { getNarrators } from '@/lib/api';
@@ -49,6 +47,17 @@ export default function BatchAddHadithPage() {
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0 });
+  
+  // حذف متغيرات الحالة المتعلقة بنموذج الإضافة البسيط
+  // const [isSubmitting, setIsSubmitting] = useState(false);
+  // const [formData, setFormData] = useState({
+  //   sourceId: '',
+  //   bookId: '',
+  //   chapterId: '',
+  //   hadithNumber: '',
+  //   sanad: '',
+  //   matn: ''
+  // });
 
   // إضافة حديث جديد
   const addHadith = () => {
@@ -208,16 +217,15 @@ export default function BatchAddHadithPage() {
 
   // حفظ جميع الأحاديث
   const saveAllHadiths = async () => {
+    // تعديل شروط الجاهزية هنا أيضًا
     const readyHadiths = hadiths.filter(h => 
       h.hadithNumber && 
       h.sanad && 
-      h.matn && 
-      h.isAnalyzed &&
-      h.extractedNarrators.every(n => n.matchedNarratorId)
+      h.matn
     );
 
     if (readyHadiths.length === 0) {
-      alert('لا توجد أحاديث جاهزة للحفظ. تأكد من تحليل وربط جميع الرواة');
+      alert('لا توجد أحاديث جاهزة للحفظ. تأكد من تعبئة جميع الخانات المطلوبة');
       return;
     }
 
@@ -229,16 +237,30 @@ export default function BatchAddHadithPage() {
 
     for (const hadith of readyHadiths) {
       try {
-        // إعداد بيانات الرواة
-        const narratorsData = hadith.extractedNarrators.map(n => ({
-          narratorId: n.matchedNarratorId!,
-          orderInChain: n.order,
-          narrationType: n.narrationType
-        }));
-
-        // تحديد الصحابي (الراوي الأول بعد عكس الترتيب)
-        const sahabiNarrator = hadith.extractedNarrators[0]; // الصحابي الآن هو الراوي الأول
-        const musnadSahabiId = sahabiNarrator?.matchedNarratorId;
+        // تعريف واضح لنوع البيانات لمتغير narratorsData
+        interface NarratorData {
+          narratorId: number;
+          orderInChain: number;
+          narrationType?: string;
+        }
+        
+        // تجهيز بيانات الرواة إذا كانت موجودة
+        let narratorsData: NarratorData[] = [];
+        let musnadSahabiId: number | undefined = undefined;
+        
+        if (hadith.isAnalyzed && hadith.extractedNarrators.length > 0) {
+          narratorsData = hadith.extractedNarrators
+            .filter(n => n.matchedNarratorId) // استخدام الرواة المطابقين فقط
+            .map(n => ({
+              narratorId: n.matchedNarratorId!,
+              orderInChain: n.order,
+              narrationType: n.narrationType
+            }));
+            
+          // تحديد الصحابي إذا كان موجودًا ومطابقًا
+          const sahabiNarrator = hadith.extractedNarrators[0];
+          musnadSahabiId = sahabiNarrator?.matchedNarratorId;
+        }
 
         const hadithData = {
           sourceId: hadith.sourceId,
@@ -312,12 +334,11 @@ export default function BatchAddHadithPage() {
   const stats = {
     total: hadiths.length,
     analyzed: hadiths.filter(h => h.isAnalyzed).length,
+    // تعديل شروط الجاهزية: تفعيل الزر بمجرد تعمير الخانات الأساسية
     ready: hadiths.filter(h => 
       h.hadithNumber && 
       h.sanad && 
-      h.matn && 
-      h.isAnalyzed &&
-      h.extractedNarrators.every(n => n.matchedNarratorId)
+      h.matn
     ).length
   };
 
@@ -409,7 +430,7 @@ export default function BatchAddHadithPage() {
             ) : (
               <>
                 <Save size={20} />
-                حفظ الأحاديث الجاهزة ({stats.ready})
+                {stats.ready === 1 ? 'حفظ الحديث' : `حفظ الأحاديث (${stats.ready})`}
               </>
             )}
           </button>
@@ -611,6 +632,15 @@ export default function BatchAddHadithPage() {
             </button>
           </div>
         )}
+
+        {/* حذف قسم نموذج إضافة الحديث المنفرد البسيط الذي يظهر داخل الإطار الأحمر في الصورة */}
+        {/* <div className="mt-8">
+          <h2 className="text-2xl font-bold text-white mb-4">إضافة حديث جديد</h2>
+          
+          <form onSubmit={handleSubmit} className="space-y-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
+            ... محتوى النموذج ...
+          </form>
+        </div> */}
       </div>
     </div>
   );

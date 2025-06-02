@@ -124,6 +124,11 @@ export const getNarratorRelations = async (id: number) => {
   return response.data;
 };
 
+export const createNarrator = async (narratorData: any) => {
+  const response = await api.post('/narrators', narratorData);
+  return response.data;
+};
+
 // Hadiths
 export const searchHadiths = async (params: {
   query?: string;

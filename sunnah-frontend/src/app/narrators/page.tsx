@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, User, Calendar, ChevronRight, Filter } from 'lucide-react';
+import { Search, User, Calendar, ChevronRight, Filter, UserPlus } from 'lucide-react';
 import { getNarrators } from '@/lib/api';
 import Link from 'next/link';
 
@@ -75,12 +75,23 @@ export default function NarratorsPage() {
   return (
     <div className="min-h-screen bg-gray-900 py-8 text-gray-100">
       <div className="container mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">الرواة</h1>
-          <p className="text-gray-400 text-lg">
-            استعرض قائمة رواة الحديث النبوي الشريف
-          </p>
+        {/* Header with Add Narrator Button */}
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold text-white mb-4">الرواة</h1>
+            <p className="text-gray-400 text-lg">
+              استعرض قائمة رواة الحديث النبوي الشريف
+            </p>
+          </div>
+          
+          {/* Add Narrator Button */}
+          <Link 
+            href="/admin/add-narrators"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-md"
+          >
+            <UserPlus size={20} />
+            إضافة راوي
+          </Link>
         </div>
 
         {/* Filters and Search */}
