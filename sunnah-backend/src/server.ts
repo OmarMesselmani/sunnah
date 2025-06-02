@@ -10,16 +10,61 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 
+// اختبار الاتصال بقاعدة البيانات عند بدء الخادم
+async function testDatabaseConnection() {
+  try {
+    await prisma.$connect();
+    console.log('✅ تم الاتصال بقاعدة البيانات بنجاح');
+    
+    // اختبار استعلام بسيط
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ قاعدة البيانات تعمل بشكل صحيح');
+  } catch (error) {
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', error);
+    console.error('تأكد من:');
+    console.error('1. تشغيل MySQL');
+    console.error('2. صحة متغير DATABASE_URL في ملف .env');
+    console.error('3. وجود قاعدة البيانات');
+    process.exit(1);
+  }
+}
+
 // الإعدادات الوسطية
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
+
+app.use(express.json({ limit: '10mb' }));
+
+// Middleware لتسجيل الطلبات
+app.use((req, res, next) => {
+  console.log(`📝 ${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('📦 البيانات المستلمة:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
 
 // نقطة نهاية للتحقق من عمل الخادم
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'خادم السنة يعمل بنجاح' });
+app.get('/api/health', async (req, res) => {
+  try {
+    // اختبار الاتصال بقاعدة البيانات
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ 
+      status: 'ok', 
+      message: 'خادم السنة يعمل بنجاح',
+      database: 'متصل',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('خطأ في فحص الصحة:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'مشكلة في الاتصال بقاعدة البيانات',
+      error: error instanceof Error ? error.message : 'خطأ غير معروف'
+    });
+  }
 });
 
 // ============ نقاط نهاية الرواة ============
@@ -47,7 +92,17 @@ app.get('/api/narrators', async (req, res) => {
       where,
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
-      orderBy: { fullName: 'asc' }
+      orderBy: { fullName: 'asc' },
+      include: {
+        _count: {
+          select: {
+            narratedHadiths: true,
+            musnadHadiths: true,
+            teachersRelation: true,
+            studentsRelation: true
+          }
+        }
+      }
     });
     
     const total = await prisma.narrator.count({ where });
@@ -63,7 +118,126 @@ app.get('/api/narrators', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching narrators:', error);
-    res.status(500).json({ error: 'حدث خطأ في جلب الرواة' });
+    res.status(500).json({ 
+      error: 'حدث خطأ في جلب الرواة',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'خطأ غير معروف') : undefined
+    });
+  }
+});
+
+// إضافة راوي جديد
+app.post('/api/narrators', async (req, res) => {
+  try {
+    console.log('📝 استلام طلب إضافة راوي');
+    console.log('📦 البيانات:', req.body);
+
+    const { 
+      fullName, 
+      kunyas, 
+      deathYears, 
+      generation, 
+      translation, 
+      teachers = [], 
+      students = [] 
+    } = req.body;
+
+    // التحقق من البيانات المطلوبة
+    if (!fullName || !generation) {
+      console.log('❌ بيانات مفقودة:', { fullName: !!fullName, generation: !!generation });
+      return res.status(400).json({ 
+        error: 'الاسم الكامل والطبقة مطلوبان',
+        received: { fullName: !!fullName, generation: !!generation }
+      });
+    }
+
+    // تحويل أول سنة وفاة إلى رقم (إذا وجدت)
+    let deathYear = null;
+    if (deathYears && deathYears.length > 0 && deathYears[0]) {
+      const year = parseInt(deathYears[0].toString(), 10);
+      if (!isNaN(year) && year > 0 && year < 2000) {
+        deathYear = year;
+      }
+    }
+
+    console.log('🔄 معالجة البيانات:', {
+      fullName: fullName.trim(),
+      kunyah: kunyas?.trim() || null,
+      deathYear,
+      generation: generation.trim()
+    });
+
+    // التحقق من عدم وجود راوي بنفس الاسم
+    const existingNarrator = await prisma.narrator.findFirst({
+      where: {
+        fullName: fullName.trim()
+      }
+    });
+
+    if (existingNarrator) {
+      console.log('⚠️ راوي موجود بالفعل:', existingNarrator.id);
+      return res.status(409).json({ 
+        error: 'يوجد راوي بنفس هذا الاسم مسبقاً',
+        existingNarrator: {
+          id: existingNarrator.id,
+          fullName: existingNarrator.fullName
+        }
+      });
+    }
+
+    // إنشاء الراوي في قاعدة البيانات
+    const narrator = await prisma.narrator.create({
+      data: {
+        fullName: fullName.trim(),
+        kunyah: kunyas?.trim() || null,
+        deathYear: deathYear,
+        generation: generation.trim(),
+        biography: translation?.trim() || null,
+        // حفظ الشيوخ والتلاميذ كنص مؤقت
+        alternativeNames: [...teachers, ...students].filter(Boolean).join(', ') || null
+      },
+      include: {
+        _count: {
+          select: {
+            narratedHadiths: true,
+            musnadHadiths: true,
+            teachersRelation: true,
+            studentsRelation: true
+          }
+        }
+      }
+    });
+
+    console.log('✅ تم إنشاء الراوي بنجاح:', narrator.id);
+
+    res.status(201).json({
+      success: true,
+      message: 'تم إضافة الراوي بنجاح',
+      narrator: narrator
+    });
+
+  } catch (error: any) {
+    console.error('❌ خطأ في إضافة الراوي:', error);
+    
+    // التعامل مع خطأ التكرار
+    if (error.code === 'P2002') {
+      return res.status(409).json({ 
+        error: 'يوجد راوي بنفس هذا الاسم مسبقاً' 
+      });
+    }
+    
+    // خطأ في الاتصال بقاعدة البيانات
+    if (error.code === 'P1001') {
+      return res.status(500).json({ 
+        error: 'فشل الاتصال بقاعدة البيانات. تأكد من تشغيل MySQL',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'حدث خطأ داخلي في الخادم',
+      code: error.code,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -71,6 +245,10 @@ app.get('/api/narrators', async (req, res) => {
 app.get('/api/narrators/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
     
     const narrator = await prisma.narrator.findUnique({
       where: { id: Number(id) },
@@ -93,7 +271,105 @@ app.get('/api/narrators/:id', async (req, res) => {
     res.json(narrator);
   } catch (error) {
     console.error('Error fetching narrator:', error);
-    res.status(500).json({ error: 'حدث خطأ في جلب بيانات الراوي' });
+    res.status(500).json({ 
+      error: 'حدث خطأ في جلب بيانات الراوي',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'خطأ غير معروف') : undefined
+    });
+  }
+});
+
+// تحديث راوي موجود
+app.put('/api/narrators/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      fullName, 
+      kunyas, 
+      deathYears, 
+      generation, 
+      translation 
+    } = req.body;
+
+    // تحويل سنة الوفاة
+    let deathYear = null;
+    if (deathYears && deathYears.length > 0 && deathYears[0]) {
+      const year = parseInt(deathYears[0].toString(), 10);
+      if (!isNaN(year)) {
+        deathYear = year;
+      }
+    }
+
+    const updatedNarrator = await prisma.narrator.update({
+      where: { id: Number(id) },
+      data: {
+        fullName: fullName?.trim(),
+        kunyah: kunyas?.trim() || null,
+        deathYear: deathYear,
+        generation: generation?.trim(),
+        biography: translation?.trim() || null
+      },
+      include: {
+        _count: {
+          select: {
+            narratedHadiths: true,
+            musnadHadiths: true,
+            teachersRelation: true,
+            studentsRelation: true
+          }
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'تم تحديث الراوي بنجاح',
+      narrator: updatedNarrator
+    });
+
+  } catch (error: any) {
+    console.error('Error updating narrator:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+    
+    res.status(500).json({ error: 'حدث خطأ في تحديث الراوي' });
+  }
+});
+
+// حذف راوي
+app.delete('/api/narrators/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // التحقق من وجود أحاديث مرتبطة
+    const hadithCount = await prisma.hadithNarrator.count({
+      where: { narratorId: Number(id) }
+    });
+
+    if (hadithCount > 0) {
+      return res.status(400).json({ 
+        error: `لا يمكن حذف الراوي لأنه مرتبط بـ ${hadithCount} حديث` 
+      });
+    }
+
+    await prisma.narrator.delete({
+      where: { id: Number(id) }
+    });
+
+    res.json({
+      success: true,
+      message: 'تم حذف الراوي بنجاح'
+    });
+
+  } catch (error: any) {
+    console.error('Error deleting narrator:', error);
+    
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+    
+    res.status(500).json({ error: 'حدث خطأ في حذف الراوي' });
   }
 });
 
@@ -193,6 +469,34 @@ app.get('/api/narrators/:id/relations', async (req, res) => {
   } catch (error) {
     console.error('Error fetching narrator relations:', error);
     res.status(500).json({ error: 'حدث خطأ في جلب علاقات الراوي' });
+  }
+});
+
+// البحث عن الرواة بالاسم
+app.get('/api/narrators/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'يرجى توفير معيار بحث صالح' });
+    }
+    
+    const narrators = await prisma.narrator.findMany({
+      where: {
+        OR: [
+          { fullName: { contains: query } },
+          { kunyah: { contains: query } },
+          { laqab: { contains: query } }
+        ]
+      },
+      take: 10,
+      orderBy: { fullName: 'asc' }
+    });
+    
+    res.json(narrators);
+  } catch (error) {
+    console.error('Error searching narrators:', error);
+    res.status(500).json({ error: 'حدث خطأ في البحث عن الرواة' });
   }
 });
 
@@ -374,16 +678,162 @@ app.post('/api/hadiths', async (req, res) => {
   }
 });
 
+// استيراد مجموعة من الأحاديث
+app.post('/api/hadiths/batch', async (req, res) => {
+  try {
+    const { hadiths } = req.body;
+    
+    if (!Array.isArray(hadiths) || hadiths.length === 0) {
+      return res.status(400).json({ error: 'يجب توفير مصفوفة غير فارغة من الأحاديث' });
+    }
+    
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    const createdHadiths: any[] = [];
+    
+    // معالجة كل حديث على حدة
+    for (const hadith of hadiths) {
+      try {
+        // التحقق من وجود البيانات الأساسية
+        if (!hadith.sourceId || !hadith.matn) {
+          failed++;
+          errors.push(`حديث بدون معرف المصدر أو المتن: ${hadith.hadithNumber || 'غير معروف'}`);
+          continue;
+        }
+        
+        // إضافة الحديث
+        const createdHadith = await prisma.hadith.create({
+          data: {
+            sourceId: Number(hadith.sourceId),
+            bookId: hadith.bookId ? Number(hadith.bookId) : undefined,
+            chapterId: hadith.chapterId ? Number(hadith.chapterId) : undefined,
+            hadithNumber: hadith.hadithNumber || '',
+            sanad: hadith.sanad || '',
+            matn: hadith.matn,
+            musnadSahabiId: hadith.musnadSahabiId ? Number(hadith.musnadSahabiId) : undefined
+          }
+        });
+        
+        // إضافة الرواة إذا كانوا موجودين
+        if (hadith.narrators && Array.isArray(hadith.narrators) && hadith.narrators.length > 0) {
+          // تعريف واجهة لهيكل البيانات
+          interface NarratorConnection {
+            narratorId: number;
+            orderInChain: number;
+            narrationType: string | null;
+          }
+
+          const narratorConnections = hadith.narrators.map((n: any) => ({
+            narratorId: Number(n.narratorId),
+            orderInChain: n.orderInChain || 0,
+            narrationType: n.narrationType || null
+          }));
+          
+          // تحديد نوع المعامل nc
+          await prisma.hadithNarrator.createMany({
+            data: narratorConnections.map((nc: NarratorConnection) => ({
+              ...nc,
+              hadithId: createdHadith.id
+            }))
+          });
+        }
+        
+        createdHadiths.push(createdHadith);
+        success++;
+      } catch (error) {
+        failed++;
+        errors.push(`حديث رقم ${hadith.hadithNumber || 'غير معروف'}: ${(error as Error).message}`);
+      }
+    }
+    
+    return res.status(200).json({ 
+      success, 
+      failed, 
+      total: hadiths.length,
+      hadiths: createdHadiths,
+      errors: errors.length > 0 ? errors : undefined 
+    });
+  } catch (error) {
+    console.error('Error importing hadiths batch:', error);
+    res.status(500).json({ 
+      error: 'فشل استيراد مجموعة الأحاديث', 
+      message: (error as Error).message 
+    });
+  }
+});
+
+// Middleware للتعامل مع الأخطاء العامة
+app.use((error: any, req: any, res: any, next: any) => {
+  console.error('💥 خطأ غير متوقع:', error);
+  res.status(500).json({
+    error: 'حدث خطأ داخلي في الخادم',
+    details: process.env.NODE_ENV === 'development' ? error.message : undefined
+  });
+});
+
+// معالجة الطرق غير الموجودة
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'الطريق غير موجود',
+    path: req.originalUrl,
+    method: req.method,
+    availableEndpoints: [
+      'GET /api/health',
+      'GET /api/narrators',
+      'POST /api/narrators',
+      'GET /api/narrators/:id',
+      'PUT /api/narrators/:id',
+      'DELETE /api/narrators/:id',
+      'GET /api/hadiths/search',
+      'POST /api/hadiths'
+    ]
+  });
+});
+
 // بدء الخادم
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 خادم السنة يعمل على المنفذ ${PORT}`);
-  console.log(`📚 API متاح على: http://localhost:${PORT}/api`);
-});
+async function startServer() {
+  try {
+    await testDatabaseConnection();
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 خادم السنة يعمل على المنفذ ${PORT}`);
+      console.log(`📚 API متاح على: http://localhost:${PORT}/api`);
+      console.log(`🔗 فحص الصحة: http://localhost:${PORT}/api/health`);
+      console.log(`📊 نقاط النهاية المتاحة:`);
+      console.log(`   • GET  /api/health - فحص حالة الخادم`);
+      console.log(`   • GET  /api/narrators - جلب الرواة`);
+      console.log(`   • POST /api/narrators - إضافة راوي جديد`);
+      console.log(`   • GET  /api/hadiths/search - البحث في الأحاديث`);
+    });
+  } catch (error) {
+    console.error('❌ فشل في بدء الخادم:', error);
+    process.exit(1);
+  }
+}
 
 // التعامل مع إيقاف الخادم بشكل نظيف
 process.on('SIGINT', async () => {
+  console.log('\n🛑 إيقاف الخادم...');
   await prisma.$disconnect();
   process.exit(0);
 });
+
+process.on('SIGTERM', async () => {
+  console.log('\n🛑 إنهاء الخادم...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('💥 Uncaught Exception:', error);
+  process.exit(1);
+});
+
+startServer();

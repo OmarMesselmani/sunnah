@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Save, Plus, X, Loader2, Calendar, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronLeft, Save, Plus, X, Loader2, Calendar, Check, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 // تعديل الواجهات لتشمل الشيوخ والتلاميذ
@@ -12,23 +13,13 @@ interface NarratorFormData {
   deathYears: string[];
   generation: string;
   translation: string;
-  teachers: string[]; // إضافة الشيوخ
-  students: string[]; // إضافة التلاميذ
-}
-
-interface NarratorEntry {
-  id: string; 
-  fullName: string;
-  kunyas: string;
-  deathYears: string[];
-  generation: string;
-  translation: string;
-  isSaved: boolean;
-  teachers: string[]; // إضافة الشيوخ
-  students: string[]; // إضافة التلاميذ
+  teachers: string[];
+  students: string[];
 }
 
 export default function AddNarratorsPage() {
+  const router = useRouter();
+  
   // بيانات الراوي الجديد
   const [formData, setFormData] = useState<NarratorFormData>({
     fullName: '',
@@ -36,12 +27,14 @@ export default function AddNarratorsPage() {
     deathYears: [''],
     generation: '',
     translation: '',
-    teachers: [], // إضافة مصفوفة فارغة للشيوخ
-    students: [], // إضافة مصفوفة فارغة للتلاميذ
+    teachers: [],
+    students: [],
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false); // متغير جديد لتتبع نجاح العملية
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string>('');
+  
   // المتغيرات الجديدة لإدارة شاشة الإضافة
   const [teacherInput, setTeacherInput] = useState('');
   const [studentInput, setStudentInput] = useState('');
@@ -63,13 +56,19 @@ export default function AddNarratorsPage() {
     { value: 'الطبقة الثانية عشرة', label: 'الطبقة الثانية عشرة - صغار الآخذين عن تبع الأتباع' },
   ];
 
-  // التعامل مع تغيير قيم النموذج - تحديث للتعامل مع مصفوفة سنوات الوفاة
+  // إعادة تعيين رسائل النجاح والخطأ
+  const resetMessages = () => {
+    setSubmitSuccess(false);
+    setSubmitError('');
+  };
+
+  // التعامل مع تغيير قيم النموذج
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+    resetMessages();
     
-    // إذا كان الاسم يحتوي على قيمة deathYear وله مؤشر، فهذا حقل سنة وفاة 
     if (name.startsWith('deathYear[')) {
       const indexMatch = name.match(/\[(\d+)\]/);
       if (indexMatch) {
@@ -93,7 +92,7 @@ export default function AddNarratorsPage() {
 
   // حذف سنة وفاة محتملة
   const removeDeathYear = (index: number) => {
-    if (formData.deathYears.length <= 1) return; // إبقاء على الأقل سنة وفاة واحدة
+    if (formData.deathYears.length <= 1) return;
     
     setFormData(prev => ({
       ...prev,
@@ -106,7 +105,7 @@ export default function AddNarratorsPage() {
     if (!teacherInput.trim()) return;
     
     if (formData.teachers.includes(teacherInput.trim())) {
-      alert('هذا الشيخ موجود بالفعل في القائمة');
+      setSubmitError('هذا الشيخ موجود بالفعل في القائمة');
       return;
     }
     
@@ -116,6 +115,7 @@ export default function AddNarratorsPage() {
     }));
     
     setTeacherInput('');
+    resetMessages();
   };
   
   // إضافة تلميذ جديد
@@ -123,7 +123,7 @@ export default function AddNarratorsPage() {
     if (!studentInput.trim()) return;
     
     if (formData.students.includes(studentInput.trim())) {
-      alert('هذا التلميذ موجود بالفعل في القائمة');
+      setSubmitError('هذا التلميذ موجود بالفعل في القائمة');
       return;
     }
     
@@ -133,6 +133,7 @@ export default function AddNarratorsPage() {
     }));
     
     setStudentInput('');
+    resetMessages();
   };
 
   // حذف شيخ
@@ -154,10 +155,11 @@ export default function AddNarratorsPage() {
   // إضافة راوٍ جديد
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    resetMessages();
     
     // التحقق من البيانات المطلوبة
-    if (!formData.fullName || !formData.generation) {
-      alert('يرجى ملء جميع الحقول المطلوبة');
+    if (!formData.fullName.trim() || !formData.generation) {
+      setSubmitError('يرجى ملء جميع الحقول المطلوبة (الاسم الكامل والطبقة)');
       return;
     }
     
@@ -166,47 +168,32 @@ export default function AddNarratorsPage() {
     try {
       // تجهيز البيانات للإرسال
       const narratorData = {
-        fullName: formData.fullName,
-        kunyas: formData.kunyas || null,
-        // تحويل سنوات الوفاة غير الفارغة إلى أرقام
-        deathYears: formData.deathYears
-          .filter(year => year.trim() !== '')
-          .map(year => parseInt(year, 10)),
+        fullName: formData.fullName.trim(),
+        kunyas: formData.kunyas.trim() || null,
+        deathYears: formData.deathYears.filter(year => year.trim() !== ''),
         generation: formData.generation,
-        translation: formData.translation || null,
-        // إرسال الشيوخ والتلاميذ كأسماء
+        translation: formData.translation.trim() || null,
         teachers: formData.teachers,
         students: formData.students
       };
       
-      console.log('إرسال بيانات الراوي:', narratorData);
+      console.log('🚀 إرسال بيانات الراوي:', narratorData);
       
-      // تعديل مسار API إن لزم الأمر
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
       // إرسال البيانات إلى API
       const response = await axios.post(`${API_URL}/api/narrators`, narratorData, {
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 10000 // 10 ثوانٍ
       });
       
-      console.log('استجابة الخادم:', response.data);
-      
-      // تسجيل تفاصيل الطلب
-      console.log('إرسال طلب إضافة راوٍ:', {
-        url: `${API_URL}/api/narrators`,
-        data: narratorData
-      });
+      console.log('✅ استجابة الخادم:', response.data);
       
       if (response.status === 201 || response.status === 200) {
         // نجاح العملية
-        setSubmitSuccess(true); // تعيين حالة النجاح
-        
-        // إخفاء رسالة النجاح بعد 3 ثوانٍ
-        setTimeout(() => {
-          setSubmitSuccess(false);
-        }, 3000);
+        setSubmitSuccess(true);
         
         // إعادة تعيين النموذج
         setFormData({
@@ -219,31 +206,37 @@ export default function AddNarratorsPage() {
           students: []
         });
         
-        // إعادة تعيين المدخلات الإضافية
         setTeacherInput('');
         setStudentInput('');
         
-        // تسجيل نجاح الإضافة
-        console.log(`تم إضافة الراوي "${formData.fullName}" بنجاح، المعرف: ${response.data.id || 'غير متوفر'}`);
+        console.log(`✅ تم إضافة الراوي "${narratorData.fullName}" بنجاح`);
+        
+        // إخفاء رسالة النجاح والانتقال لصفحة الرواة بعد 2 ثانية
+        setTimeout(() => {
+          router.push('/narrators');
+        }, 2000);
         
       } else {
         throw new Error(`حدث خطأ: ${response.statusText}`);
       }
       
     } catch (error: any) {
-      console.error('خطأ في إضافة الراوي:', error);
+      console.error('❌ خطأ في إضافة الراوي:', error);
       
       // عرض رسالة خطأ أكثر تفصيلاً
       if (error.response) {
         // الخادم استجاب برمز حالة خارج نطاق 2xx
-        alert(`حدث خطأ أثناء إضافة الراوي: ${error.response.data?.message || error.response.statusText || 'خطأ غير معروف'}`);
-        console.error('استجابة الخطأ:', error.response.data);
+        const errorMessage = error.response.data?.error || error.response.data?.message || 'خطأ من الخادم';
+        setSubmitError(`خطأ (${error.response.status}): ${errorMessage}`);
+        console.error('🔴 استجابة الخطأ:', error.response.data);
       } else if (error.request) {
         // الطلب تم إنشاؤه لكن لم يتم تلقي استجابة
-        alert('لم نتمكن من الاتصال بالخادم. تأكد من تشغيل الخادم وأنه متاح.');
+        setSubmitError('لم نتمكن من الاتصال بالخادم. تأكد من تشغيل الخادم وأنه متاح على المنفذ 5000.');
+      } else if (error.code === 'ECONNABORTED') {
+        setSubmitError('انتهت مهلة الاتصال. تأكد من سرعة الإنترنت.');
       } else {
         // حدث خطأ آخر
-        alert(`حدث خطأ: ${error.message}`);
+        setSubmitError(`حدث خطأ غير متوقع: ${error.message}`);
       }
     } finally {
       setIsSubmitting(false);
@@ -256,13 +249,12 @@ export default function AddNarratorsPage() {
         {/* رأس الصفحة */}
         <div className="mb-8">
           <Link
-            href="/"
+            href="/narrators"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 mb-4"
           >
             <ChevronLeft size={20} />
-            العودة للرئيسية
-          </Link
-          >
+            العودة لقائمة الرواة
+          </Link>
           
           <div>
             <h1 className="text-3xl font-bold text-white">إضافة راوٍ جديد</h1>
@@ -276,6 +268,24 @@ export default function AddNarratorsPage() {
         <div className="bg-gray-800 rounded-lg shadow-md border border-gray-700 overflow-hidden">
           <div className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* رسائل النجاح والخطأ */}
+              {submitSuccess && (
+                <div className="bg-emerald-900/30 text-emerald-400 p-4 rounded-lg mb-6 flex items-center">
+                  <Check className="mr-2" size={20} />
+                  تم إضافة الراوي بنجاح! جارٍ التوجيه لصفحة الرواة...
+                </div>
+              )}
+              
+              {submitError && (
+                <div className="bg-red-900/30 text-red-400 p-4 rounded-lg mb-6 flex items-start">
+                  <AlertCircle className="mr-2 mt-0.5 flex-shrink-0" size={20} />
+                  <div>
+                    <div className="font-medium">حدث خطأ:</div>
+                    <div className="text-sm mt-1">{submitError}</div>
+                  </div>
+                </div>
+              )}
+
               {/* البيانات الأساسية */}
               <div className="space-y-4">
                 {/* اسم الراوي */}
@@ -305,16 +315,9 @@ export default function AddNarratorsPage() {
                     value={formData.translation}
                     onChange={handleChange}
                     rows={2}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 resize-none auto-expand"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
                     placeholder="أدخل ترجمة مختصرة للراوي..."
                     dir="rtl"
-                    style={{ overflow: 'hidden' }}
-                    onInput={(e) => {
-                      // تعديل ارتفاع النص تلقائياً
-                      const target = e.target as HTMLTextAreaElement;
-                      target.style.height = 'auto';
-                      target.style.height = `${target.scrollHeight}px`;
-                    }}
                   />
                 </div>
                 
@@ -354,7 +357,6 @@ export default function AddNarratorsPage() {
                             <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                           </div>
                           
-                          {/* زر إزالة سنة الوفاة - يظهر فقط إذا كان هناك أكثر من سنة */}
                           {formData.deathYears.length > 1 && (
                             <button
                               type="button"
@@ -367,7 +369,6 @@ export default function AddNarratorsPage() {
                         </div>
                       ))}
                       
-                      {/* زر إضافة سنة وفاة محتملة */}
                       <button
                         type="button"
                         onClick={addDeathYear}
@@ -402,13 +403,12 @@ export default function AddNarratorsPage() {
               
               {/* قسم الشيوخ والتلاميذ */}
               <div className="space-y-6 pt-4 border-t border-gray-700">
-                <h3 className="text-lg font-medium text-white">الشيوخ والتلاميذ</h3>
+                <h3 className="text-lg font-medium text-white">الشيوخ والتلاميذ (اختياري)</h3>
                 
                 {/* قسم الشيوخ */}
                 <div className="space-y-4">
                   <h4 className="text-md font-medium text-gray-300">الشيوخ</h4>
                   
-                  {/* إضافة شيخ يدوياً */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -428,7 +428,6 @@ export default function AddNarratorsPage() {
                     </button>
                   </div>
                   
-                  {/* قائمة الشيوخ */}
                   {formData.teachers.length > 0 ? (
                     <ul className="space-y-1">
                       {formData.teachers.map((teacher, index) => (
@@ -456,7 +455,6 @@ export default function AddNarratorsPage() {
                 <div className="space-y-4">
                   <h4 className="text-md font-medium text-gray-300">التلاميذ</h4>
                   
-                  {/* إضافة تلميذ يدوياً */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -476,7 +474,6 @@ export default function AddNarratorsPage() {
                     </button>
                   </div>
                   
-                  {/* قائمة التلاميذ */}
                   {formData.students.length > 0 ? (
                     <ul className="space-y-1">
                       {formData.students.map((student, index) => (
@@ -501,25 +498,22 @@ export default function AddNarratorsPage() {
                 </div>
               </div>
               
-              {/* رسالة نجاح التقديم */}
-              {submitSuccess && (
-                <div className="bg-emerald-900/30 text-emerald-400 p-4 rounded-lg mb-6 flex items-center">
-                  <Check className="mr-2" size={20} />
-                  تم إضافة الراوي بنجاح
-                </div>
-              )}
-              
               {/* زر الإضافة */}
               <div className="pt-6 border-t border-gray-700">
                 <button
                   type="submit"
-                  disabled={isSubmitting || !formData.fullName || !formData.generation}
-                  className="w-full bg-emerald-600 text-white py-2 px-4 rounded-lg hover:bg-emerald-700 disabled:bg-gray-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={isSubmitting || !formData.fullName.trim() || !formData.generation || submitSuccess}
+                  className="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg hover:bg-emerald-700 disabled:bg-gray-700 disabled:opacity-50 flex items-center justify-center gap-2 font-medium"
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="animate-spin h-5 w-5" />
-                      جارٍ الإضافة...
+                      جارٍ إضافة الراوي...
+                    </>
+                  ) : submitSuccess ? (
+                    <>
+                      <Check className="h-5 w-5" />
+                      تم الحفظ بنجاح
                     </>
                   ) : (
                     <>
@@ -528,9 +522,30 @@ export default function AddNarratorsPage() {
                     </>
                   )}
                 </button>
+                
+                {/* معلومات إضافية */}
+                <div className="mt-4 text-center">
+                  <p className="text-sm text-gray-400">
+                    <span className="text-red-500">*</span> الحقول المطلوبة
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    سيتم حفظ الراوي في قاعدة البيانات وإضافته لقائمة الرواة
+                  </p>
+                </div>
               </div>
             </form>
           </div>
+        </div>
+        
+        {/* نصائح مفيدة */}
+        <div className="mt-8 bg-blue-900/20 border border-blue-800 rounded-lg p-4">
+          <h3 className="text-blue-400 font-medium mb-2">💡 نصائح لإضافة الرواة:</h3>
+          <ul className="text-sm text-gray-300 space-y-1">
+            <li>• تأكد من كتابة الاسم الكامل بالشكل الصحيح</li>
+            <li>• يمكن إضافة عدة سنوات محتملة للوفاة إذا كان هناك خلاف في المصادر</li>
+            <li>• الطبقة مهمة لتصنيف الراوي زمنياً</li>
+            <li>• الترجمة والشيوخ والتلاميذ اختيارية ويمكن إضافتها لاحقاً</li>
+          </ul>
         </div>
       </div>
     </div>
