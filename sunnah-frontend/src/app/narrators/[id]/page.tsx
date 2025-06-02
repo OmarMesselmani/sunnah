@@ -12,9 +12,10 @@ import {
   Scroll,
   Link as LinkIcon,
   Hash,
-  ExternalLink
+  ExternalLink,
+  Clock
 } from 'lucide-react';
-import { getNarratorById, getNarratorHadiths, getNarratorRelations } from '@/lib/api';
+import { getNarratorById, getNarratorHadiths, getNarratorRelations, getDisplayDeathYears, getPrimaryDeathYear } from '@/lib/api';
 
 interface Narrator {
   id: number;
@@ -23,6 +24,12 @@ interface Narrator {
   laqab?: string;
   generation: string;
   deathYear?: number;
+  deathYears?: Array<{
+    id: number;
+    year: number;
+    isPrimary: boolean;
+    source?: string;
+  }>;
   biography?: string;
   _count?: {
     narratedHadiths: number;
@@ -127,6 +134,57 @@ export default function NarratorDetailPage() {
     }
   };
 
+  const renderDeathYears = (narrator: Narrator) => {
+    if (!narrator.deathYears || narrator.deathYears.length === 0) {
+      // التوافق مع النظام القديم
+      if (narrator.deathYear) {
+        return (
+          <div className="flex items-center gap-2 text-gray-300">
+            <Calendar size={18} />
+            <span className="font-semibold">سنة الوفاة:</span> 
+            <span>{narrator.deathYear} هـ</span>
+          </div>
+        );
+      }
+      return null;
+    }
+
+    if (narrator.deathYears.length === 1) {
+      return (
+        <div className="flex items-center gap-2 text-gray-300">
+          <Calendar size={18} />
+          <span className="font-semibold">سنة الوفاة:</span> 
+          <span>{narrator.deathYears[0].year} هـ</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-gray-300">
+        <div className="flex items-center gap-2 mb-2">
+          <Clock size={18} />
+          <span className="font-semibold">سنوات الوفاة المحتملة:</span>
+        </div>
+        <div className="mr-6 space-y-1">
+          {narrator.deathYears.map((deathYear, index) => (
+            <div key={deathYear.id} className="flex items-center gap-2 text-sm">
+              <span className={`inline-block w-2 h-2 rounded-full ${
+                deathYear.isPrimary ? 'bg-emerald-400' : 'bg-gray-500'
+              }`}></span>
+              <span>{deathYear.year} هـ</span>
+              {deathYear.isPrimary && (
+                <span className="text-emerald-400 text-xs">(الأرجح)</span>
+              )}
+              {deathYear.source && (
+                <span className="text-gray-500 text-xs">({deathYear.source})</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -187,12 +245,9 @@ export default function NarratorDetailPage() {
                     <span className="font-semibold">اللقب:</span> {narrator.laqab}
                   </p>
                 )}
-                {narrator.deathYear && (
-                  <p className="text-gray-300 flex items-center gap-2">
-                    <Calendar size={18} />
-                    <span className="font-semibold">سنة الوفاة:</span> {narrator.deathYear} هـ
-                  </p>
-                )}
+                
+                {/* عرض سنوات الوفاة المحدثة */}
+                {renderDeathYears(narrator)}
               </div>
 
               <span className={`inline-block px-4 py-2 rounded-full text-sm font-medium ${getGenerationColor(narrator.generation)}`}>

@@ -16,15 +16,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/narrators/page.js"
     ],
+    "/narrators/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/narrators/[id]/page.js"
+    ],
     "/admin/add-narrators/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/admin/add-narrators/page.js"
     ],
-    "/narrators/[id]/page": [
+    "/admin/add-hadith/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/narrators/[id]/page.js"
+      "static/chunks/app/admin/add-hadith/page.js"
     ]
   }
 }

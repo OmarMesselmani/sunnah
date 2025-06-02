@@ -94,6 +94,12 @@ app.get('/api/narrators', async (req, res) => {
       take: Number(limit),
       orderBy: { fullName: 'asc' },
       include: {
+        deathYears: {
+          orderBy: [
+            { isPrimary: 'desc' }, // السنة الأساسية أولاً
+            { year: 'asc' }        // ثم باقي السنوات مرتبة
+          ]
+        },
         _count: {
           select: {
             narratedHadiths: true,
@@ -134,7 +140,7 @@ app.post('/api/narrators', async (req, res) => {
     const { 
       fullName, 
       kunyas, 
-      deathYears, 
+      deathYears = [], 
       generation, 
       translation, 
       teachers = [], 
@@ -150,19 +156,25 @@ app.post('/api/narrators', async (req, res) => {
       });
     }
 
-    // تحويل أول سنة وفاة إلى رقم (إذا وجدت)
-    let deathYear = null;
-    if (deathYears && deathYears.length > 0 && deathYears[0]) {
-      const year = parseInt(deathYears[0].toString(), 10);
-      if (!isNaN(year) && year > 0 && year < 2000) {
-        deathYear = year;
-      }
-    }
+    // معالجة سنوات الوفاة
+    const validDeathYears = deathYears
+      .filter((year: any) => year && String(year).trim())
+      .map((year: any, index: number) => {
+        const yearNum = parseInt(String(year).trim(), 10);
+        if (isNaN(yearNum) || yearNum <= 0 || yearNum >= 2000) {
+          return null;
+        }
+        return {
+          year: yearNum,
+          isPrimary: index === 0 // السنة الأولى تكون الأساسية
+        };
+      })
+      .filter(Boolean);
 
     console.log('🔄 معالجة البيانات:', {
       fullName: fullName.trim(),
       kunyah: kunyas?.trim() || null,
-      deathYear,
+      deathYears: validDeathYears,
       generation: generation.trim()
     });
 
@@ -184,35 +196,65 @@ app.post('/api/narrators', async (req, res) => {
       });
     }
 
-    // إنشاء الراوي في قاعدة البيانات
-    const narrator = await prisma.narrator.create({
-      data: {
-        fullName: fullName.trim(),
-        kunyah: kunyas?.trim() || null,
-        deathYear: deathYear,
-        generation: generation.trim(),
-        biography: translation?.trim() || null,
-        // حفظ الشيوخ والتلاميذ كنص مؤقت
-        alternativeNames: [...teachers, ...students].filter(Boolean).join(', ') || null
-      },
-      include: {
-        _count: {
-          select: {
-            narratedHadiths: true,
-            musnadHadiths: true,
-            teachersRelation: true,
-            studentsRelation: true
+    // تعريف واجهة لسنوات الوفاة
+    interface ValidDeathYear {
+      year: number;
+      isPrimary: boolean;
+    }
+
+    // استخدام Transaction لضمان سلامة البيانات
+    const result = await prisma.$transaction(async (tx: any) => {
+      // إنشاء الراوي
+      const narrator = await tx.narrator.create({
+        data: {
+          fullName: fullName.trim(),
+          kunyah: kunyas?.trim() || null,
+          deathYear: validDeathYears.length > 0 ? (validDeathYears[0] as ValidDeathYear).year : null, // للتوافق مع النظام القديم
+          generation: generation.trim(),
+          biography: translation?.trim() || null,
+          alternativeNames: [...teachers, ...students].filter(Boolean).join(', ') || null
+        }
+      });
+
+      // إضافة سنوات الوفاة إذا وجدت
+      if (validDeathYears.length > 0) {
+        await tx.narratorDeathYear.createMany({
+          data: (validDeathYears as ValidDeathYear[]).map((dy: ValidDeathYear) => ({
+            narratorId: narrator.id,
+            year: dy.year,
+            isPrimary: dy.isPrimary
+          }))
+        });
+      }
+
+      // إرجاع الراوي مع سنوات الوفاة
+      return await tx.narrator.findUnique({
+        where: { id: narrator.id },
+        include: {
+          deathYears: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { year: 'asc' }
+            ]
+          },
+          _count: {
+            select: {
+              narratedHadiths: true,
+              musnadHadiths: true,
+              teachersRelation: true,
+              studentsRelation: true
+            }
           }
         }
-      }
+      });
     });
 
-    console.log('✅ تم إنشاء الراوي بنجاح:', narrator.id);
+    console.log('✅ تم إنشاء الراوي بنجاح:', result?.id);
 
     res.status(201).json({
       success: true,
       message: 'تم إضافة الراوي بنجاح',
-      narrator: narrator
+      narrator: result
     });
 
   } catch (error: any) {
@@ -253,6 +295,12 @@ app.get('/api/narrators/:id', async (req, res) => {
     const narrator = await prisma.narrator.findUnique({
       where: { id: Number(id) },
       include: {
+        deathYears: {
+          orderBy: [
+            { isPrimary: 'desc' },
+            { year: 'asc' }
+          ]
+        },
         _count: {
           select: {
             narratedHadiths: true,
@@ -285,45 +333,87 @@ app.put('/api/narrators/:id', async (req, res) => {
     const { 
       fullName, 
       kunyas, 
-      deathYears, 
+      deathYears = [], 
       generation, 
       translation 
     } = req.body;
 
-    // تحويل سنة الوفاة
-    let deathYear = null;
-    if (deathYears && deathYears.length > 0 && deathYears[0]) {
-      const year = parseInt(deathYears[0].toString(), 10);
-      if (!isNaN(year)) {
-        deathYear = year;
-      }
+    // تعريف واجهة لسنوات الوفاة
+    interface ValidDeathYear {
+      year: number;
+      isPrimary: boolean;
     }
 
-    const updatedNarrator = await prisma.narrator.update({
-      where: { id: Number(id) },
-      data: {
-        fullName: fullName?.trim(),
-        kunyah: kunyas?.trim() || null,
-        deathYear: deathYear,
-        generation: generation?.trim(),
-        biography: translation?.trim() || null
-      },
-      include: {
-        _count: {
-          select: {
-            narratedHadiths: true,
-            musnadHadiths: true,
-            teachersRelation: true,
-            studentsRelation: true
+    // معالجة سنوات الوفاة
+    const validDeathYears = deathYears
+      .filter((year: any) => year && String(year).trim())
+      .map((year: any, index: number) => {
+        const yearNum = parseInt(String(year).trim(), 10);
+        if (isNaN(yearNum) || yearNum <= 0 || yearNum >= 2000) {
+          return null;
+        }
+        return {
+          year: yearNum,
+          isPrimary: index === 0
+        };
+      })
+      .filter(Boolean);
+
+    const result = await prisma.$transaction(async (tx: any) => {
+      // تحديث بيانات الراوي الأساسية
+      const updatedNarrator = await tx.narrator.update({
+        where: { id: Number(id) },
+        data: {
+          fullName: fullName?.trim(),
+          kunyah: kunyas?.trim() || null,
+          deathYear: validDeathYears.length > 0 ? (validDeathYears[0] as ValidDeathYear).year : null,
+          generation: generation?.trim(),
+          biography: translation?.trim() || null
+        }
+      });
+
+      // حذف سنوات الوفاة الحالية
+      await tx.narratorDeathYear.deleteMany({
+        where: { narratorId: Number(id) }
+      });
+
+      // إضافة سنوات الوفاة الجديدة
+      if (validDeathYears.length > 0) {
+        await tx.narratorDeathYear.createMany({
+          data: (validDeathYears as ValidDeathYear[]).map((dy: ValidDeathYear) => ({
+            narratorId: Number(id),
+            year: dy.year,
+            isPrimary: dy.isPrimary
+          }))
+        });
+      }
+
+      // إرجاع الراوي المحدث
+      return await tx.narrator.findUnique({
+        where: { id: Number(id) },
+        include: {
+          deathYears: {
+            orderBy: [
+              { isPrimary: 'desc' },
+              { year: 'asc' }
+            ]
+          },
+          _count: {
+            select: {
+              narratedHadiths: true,
+              musnadHadiths: true,
+              teachersRelation: true,
+              studentsRelation: true
+            }
           }
         }
-      }
+      });
     });
 
     res.json({
       success: true,
       message: 'تم تحديث الراوي بنجاح',
-      narrator: updatedNarrator
+      narrator: result
     });
 
   } catch (error: any) {
@@ -353,8 +443,16 @@ app.delete('/api/narrators/:id', async (req, res) => {
       });
     }
 
-    await prisma.narrator.delete({
-      where: { id: Number(id) }
+    await prisma.$transaction(async (tx: any) => {
+      // حذف سنوات الوفاة أولاً
+      await tx.narratorDeathYear.deleteMany({
+        where: { narratorId: Number(id) }
+      });
+
+      // ثم حذف الراوي
+      await tx.narrator.delete({
+        where: { id: Number(id) }
+      });
     });
 
     res.json({
@@ -489,6 +587,14 @@ app.get('/api/narrators/search', async (req, res) => {
           { laqab: { contains: query } }
         ]
       },
+      include: {
+        deathYears: {
+          orderBy: [
+            { isPrimary: 'desc' },
+            { year: 'asc' }
+          ]
+        }
+      },
       take: 10,
       orderBy: { fullName: 'asc' }
     });
@@ -561,10 +667,28 @@ app.get('/api/hadiths/search', async (req, res) => {
         source: true,
         book: true,
         chapter: true,
-        musnadSahabi: true,
+        musnadSahabi: {
+          include: {
+            deathYears: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { year: 'asc' }
+              ]
+            }
+          }
+        },
         narrators: {
           include: {
-            narrator: true
+            narrator: {
+              include: {
+                deathYears: {
+                  orderBy: [
+                    { isPrimary: 'desc' },
+                    { year: 'asc' }
+                  ]
+                }
+              }
+            }
           },
           orderBy: {
             orderInChain: 'asc'
@@ -603,10 +727,28 @@ app.get('/api/hadiths/:id', async (req, res) => {
         source: true,
         book: true,
         chapter: true,
-        musnadSahabi: true,
+        musnadSahabi: {
+          include: {
+            deathYears: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { year: 'asc' }
+              ]
+            }
+          }
+        },
         narrators: {
           include: {
-            narrator: true
+            narrator: {
+              include: {
+                deathYears: {
+                  orderBy: [
+                    { isPrimary: 'desc' },
+                    { year: 'asc' }
+                  ]
+                }
+              }
+            }
           },
           orderBy: {
             orderInChain: 'asc'
@@ -662,10 +804,28 @@ app.post('/api/hadiths', async (req, res) => {
         source: true,
         book: true,
         chapter: true,
-        musnadSahabi: true,
+        musnadSahabi: {
+          include: {
+            deathYears: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { year: 'asc' }
+              ]
+            }
+          }
+        },
         narrators: {
           include: {
-            narrator: true
+            narrator: {
+              include: {
+                deathYears: {
+                  orderBy: [
+                    { isPrimary: 'desc' },
+                    { year: 'asc' }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -785,8 +945,13 @@ app.use('*', (req, res) => {
       'GET /api/narrators/:id',
       'PUT /api/narrators/:id',
       'DELETE /api/narrators/:id',
+      'GET /api/narrators/:id/hadiths',
+      'GET /api/narrators/:id/relations',
+      'GET /api/narrators/search',
       'GET /api/hadiths/search',
-      'POST /api/hadiths'
+      'GET /api/hadiths/:id',
+      'POST /api/hadiths',
+      'POST /api/hadiths/batch'
     ]
   });
 });
@@ -806,7 +971,16 @@ async function startServer() {
       console.log(`   • GET  /api/health - فحص حالة الخادم`);
       console.log(`   • GET  /api/narrators - جلب الرواة`);
       console.log(`   • POST /api/narrators - إضافة راوي جديد`);
+      console.log(`   • GET  /api/narrators/:id - تفاصيل راوي محدد`);
+      console.log(`   • PUT  /api/narrators/:id - تحديث راوي`);
+      console.log(`   • DELETE /api/narrators/:id - حذف راوي`);
+      console.log(`   • GET  /api/narrators/:id/hadiths - أحاديث راوي محدد`);
+      console.log(`   • GET  /api/narrators/:id/relations - علاقات راوي محدد`);
+      console.log(`   • GET  /api/narrators/search - البحث عن رواة`);
       console.log(`   • GET  /api/hadiths/search - البحث في الأحاديث`);
+      console.log(`   • GET  /api/hadiths/:id - تفاصيل حديث محدد`);
+      console.log(`   • POST /api/hadiths - إضافة حديث جديد`);
+      console.log(`   • POST /api/hadiths/batch - استيراد مجموعة أحاديث`);
     });
   } catch (error) {
     console.error('❌ فشل في بدء الخادم:', error);

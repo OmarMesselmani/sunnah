@@ -1,9 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, User, Calendar, ChevronRight, Filter, UserPlus } from 'lucide-react';
-import { getNarrators } from '@/lib/api';
+import { Search, User, Calendar, ChevronRight, Filter, UserPlus, Clock } from 'lucide-react';
+import { getNarrators, getDisplayDeathYears, getPrimaryDeathYear } from '@/lib/api';
 import Link from 'next/link';
+
+interface NarratorDeathYear {
+  id: number;
+  year: number;
+  isPrimary: boolean;
+  source?: string;
+}
 
 interface Narrator {
   id: number;
@@ -12,6 +19,7 @@ interface Narrator {
   laqab?: string;
   generation: string;
   deathYear?: number;
+  deathYears?: NarratorDeathYear[];
   _count?: {
     narratedHadiths: number;
   };
@@ -70,6 +78,42 @@ export default function NarratorsPage() {
       default:
         return 'bg-gray-800 text-gray-300';
     }
+  };
+
+  const renderDeathYearsInfo = (narrator: Narrator) => {
+    if (!narrator.deathYears || narrator.deathYears.length === 0) {
+      // التوافق مع النظام القديم
+      if (narrator.deathYear) {
+        return (
+          <div className="flex items-center gap-1">
+            <Calendar size={16} />
+            <span>{narrator.deathYear} هـ</span>
+          </div>
+        );
+      }
+      return null;
+    }
+
+    if (narrator.deathYears.length === 1) {
+      return (
+        <div className="flex items-center gap-1">
+          <Calendar size={16} />
+          <span>{narrator.deathYears[0].year} هـ</span>
+        </div>
+      );
+    }
+
+    // عدة سنوات وفاة محتملة
+    const primaryYear = narrator.deathYears.find(dy => dy.isPrimary);
+    const displayYear = primaryYear ? primaryYear.year : narrator.deathYears[0].year;
+    
+    return (
+      <div className="flex items-center gap-1" title={`سنوات محتملة: ${narrator.deathYears.map(dy => dy.year).join('، ')}`}>
+        <Clock size={16} className="text-orange-400" />
+        <span>{displayYear} هـ</span>
+        <span className="text-xs text-orange-400">({narrator.deathYears.length}+)</span>
+      </div>
+    );
   };
 
   return (
@@ -178,12 +222,9 @@ export default function NarratorsPage() {
                       {narrator.generation}
                     </span>
                     <div className="flex items-center gap-4 text-sm text-gray-400">
-                      {narrator.deathYear && (
-                        <div className="flex items-center gap-1">
-                          <Calendar size={16} />
-                          <span>{narrator.deathYear} هـ</span>
-                        </div>
-                      )}
+                      {/* عرض معلومات سنوات الوفاة المحدثة */}
+                      {renderDeathYearsInfo(narrator)}
+                      
                       {narrator._count?.narratedHadiths ? (
                         <div className="flex items-center gap-1">
                           <User size={16} />
