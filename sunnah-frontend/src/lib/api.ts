@@ -18,7 +18,7 @@ export interface NarratorDeathYear {
 }
 
 export interface Narrator {
-  id: number;
+  id: string; // Changed from number to string for UUID
   fullName: string;
   kunyah?: string;
   laqab?: string;
@@ -78,7 +78,7 @@ export interface Hadith {
 }
 
 export interface NarratorRelation {
-  id: number;
+  id: string; // Changed from number to string for UUID
   name: string;
   relation_count: number;
 }
@@ -95,6 +95,12 @@ export interface NarratorsResponse {
   pagination: PaginationInfo;
 }
 
+// Helper function to validate UUID
+export const isValidUUID = (uuid: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+};
+
 // API Functions
 
 // Narrators
@@ -108,15 +114,25 @@ export const getNarrators = async (params?: {
   return response.data;
 };
 
-export const getNarratorById = async (id: number) => {
+export const getNarratorById = async (id: string) => {
+  // Validate UUID before making the request
+  if (!isValidUUID(id)) {
+    throw new Error('Invalid narrator ID format');
+  }
+  
   const response = await api.get<Narrator>(`/narrators/${id}`);
   return response.data;
 };
 
 export const getNarratorHadiths = async (
-  id: number,
+  id: string,
   params?: { page?: number; limit?: number }
 ) => {
+  // Validate UUID before making the request
+  if (!isValidUUID(id)) {
+    throw new Error('Invalid narrator ID format');
+  }
+  
   const response = await api.get<{
     hadiths: Hadith[];
     pagination: PaginationInfo;
@@ -124,7 +140,12 @@ export const getNarratorHadiths = async (
   return response.data;
 };
 
-export const getNarratorRelations = async (id: number) => {
+export const getNarratorRelations = async (id: string) => {
+  // Validate UUID before making the request
+  if (!isValidUUID(id)) {
+    throw new Error('Invalid narrator ID format');
+  }
+  
   const response = await api.get<{
     teachers: NarratorRelation[];
     students: NarratorRelation[];
@@ -134,6 +155,33 @@ export const getNarratorRelations = async (id: number) => {
 
 export const createNarrator = async (narratorData: any) => {
   const response = await api.post('/narrators', narratorData);
+  return response.data;
+};
+
+export const updateNarrator = async (id: string, narratorData: any) => {
+  // Validate UUID before making the request
+  if (!isValidUUID(id)) {
+    throw new Error('Invalid narrator ID format');
+  }
+  
+  const response = await api.put(`/narrators/${id}`, narratorData);
+  return response.data;
+};
+
+export const deleteNarrator = async (id: string) => {
+  // Validate UUID before making the request
+  if (!isValidUUID(id)) {
+    throw new Error('Invalid narrator ID format');
+  }
+  
+  const response = await api.delete(`/narrators/${id}`);
+  return response.data;
+};
+
+export const searchNarrators = async (query: string) => {
+  const response = await api.get<Narrator[]>('/narrators/search', { 
+    params: { query } 
+  });
   return response.data;
 };
 
@@ -154,6 +202,70 @@ export const searchHadiths = async (params: {
 
 export const getHadithById = async (id: number) => {
   const response = await api.get<Hadith>(`/hadiths/${id}`);
+  return response.data;
+};
+
+export const createHadith = async (hadithData: {
+  sourceId: number;
+  bookId?: number;
+  chapterId?: number;
+  hadithNumber: string;
+  sanad: string;
+  matn: string;
+  musnadSahabiId?: string; // Changed from number to string for UUID
+  narrators?: Array<{
+    narratorId: string; // Changed from number to string for UUID
+    orderInChain: number;
+    narrationType?: string;
+  }>;
+}) => {
+  // Validate UUIDs if provided
+  if (hadithData.musnadSahabiId && !isValidUUID(hadithData.musnadSahabiId)) {
+    throw new Error('Invalid musnadSahabi ID format');
+  }
+  
+  if (hadithData.narrators) {
+    for (const narrator of hadithData.narrators) {
+      if (!isValidUUID(narrator.narratorId)) {
+        throw new Error('Invalid narrator ID format');
+      }
+    }
+  }
+  
+  const response = await api.post('/hadiths', hadithData);
+  return response.data;
+};
+
+export const createHadithsBatch = async (hadiths: Array<{
+  sourceId: number;
+  bookId?: number;
+  chapterId?: number;
+  hadithNumber: string;
+  sanad: string;
+  matn: string;
+  musnadSahabiId?: string; // Changed from number to string for UUID
+  narrators?: Array<{
+    narratorId: string; // Changed from number to string for UUID
+    orderInChain: number;
+    narrationType?: string;
+  }>;
+}>) => {
+  // Validate UUIDs in batch data
+  for (const hadith of hadiths) {
+    if (hadith.musnadSahabiId && !isValidUUID(hadith.musnadSahabiId)) {
+      throw new Error(`Invalid musnadSahabi ID format in hadith ${hadith.hadithNumber}`);
+    }
+    
+    if (hadith.narrators) {
+      for (const narrator of hadith.narrators) {
+        if (!isValidUUID(narrator.narratorId)) {
+          throw new Error(`Invalid narrator ID format in hadith ${hadith.hadithNumber}`);
+        }
+      }
+    }
+  }
+  
+  const response = await api.post('/hadiths/batch', { hadiths });
   return response.data;
 };
 

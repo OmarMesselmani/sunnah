@@ -13,7 +13,7 @@ interface NarratorDeathYear {
 }
 
 interface Narrator {
-  id: number;
+  id: string; // Changed from number to string for UUID
   fullName: string;
   kunyah?: string;
   laqab?: string;
@@ -65,15 +65,36 @@ export default function NarratorsPage() {
     { value: 'صحابي', label: 'الصحابة' },
     { value: 'تابعي', label: 'التابعون' },
     { value: 'تابع التابعين', label: 'تابعو التابعين' },
+    { value: 'الطبقة الأولى', label: 'الطبقة الأولى' },
+    { value: 'الطبقة الثانية', label: 'الطبقة الثانية' },
+    { value: 'الطبقة الثالثة', label: 'الطبقة الثالثة' },
+    { value: 'الطبقة الرابعة', label: 'الطبقة الرابعة' },
+    { value: 'الطبقة الخامسة', label: 'الطبقة الخامسة' },
+    { value: 'الطبقة السادسة', label: 'الطبقة السادسة' },
+    { value: 'الطبقة السابعة', label: 'الطبقة السابعة' },
+    { value: 'الطبقة الثامنة', label: 'الطبقة الثامنة' },
+    { value: 'الطبقة التاسعة', label: 'الطبقة التاسعة' },
+    { value: 'الطبقة العاشرة', label: 'الطبقة العاشرة' },
+    { value: 'الطبقة الحادية عشرة', label: 'الطبقة الحادية عشرة' },
+    { value: 'الطبقة الثانية عشرة', label: 'الطبقة الثانية عشرة' },
   ];
 
   const getGenerationColor = (generation: string) => {
     switch (generation) {
       case 'صحابي':
+      case 'الطبقة الأولى':
+      case 'الطبقة الثانية':
         return 'bg-emerald-900/30 text-emerald-400';
       case 'تابعي':
+      case 'الطبقة الثالثة':
+      case 'الطبقة الرابعة':
+      case 'الطبقة الخامسة':
         return 'bg-blue-900/30 text-blue-400';
       case 'تابع التابعين':
+      case 'الطبقة السادسة':
+      case 'الطبقة السابعة':
+      case 'الطبقة الثامنة':
+      case 'الطبقة التاسعة':
         return 'bg-purple-900/30 text-purple-400';
       default:
         return 'bg-gray-800 text-gray-300';
@@ -233,6 +254,11 @@ export default function NarratorsPage() {
                       ) : null}
                     </div>
                   </div>
+
+                  {/* Display UUID for debugging (remove in production) */}
+                  <div className="mt-2 text-xs text-gray-500 font-mono">
+                    {narrator.id}
+                  </div>
                 </Link>
               ))}
             </div>
@@ -242,6 +268,9 @@ export default function NarratorsPage() {
               <div className="text-center py-12">
                 <User className="mx-auto text-gray-500 mb-4" size={48} />
                 <p className="text-gray-400 text-lg">لم يتم العثور على رواة</p>
+                <p className="text-gray-500 text-sm mt-2">
+                  جرب تعديل معايير البحث أو إضافة راوي جديد
+                </p>
               </div>
             )}
 
@@ -258,7 +287,17 @@ export default function NarratorsPage() {
                 
                 <div className="flex items-center gap-2">
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNum = i + 1;
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else {
+                      // Show pages around current page
+                      const start = Math.max(1, page - 2);
+                      const end = Math.min(totalPages, start + 4);
+                      pageNum = start + i;
+                      if (pageNum > end) return null;
+                    }
+                    
                     return (
                       <button
                         key={pageNum}
@@ -273,6 +312,18 @@ export default function NarratorsPage() {
                       </button>
                     );
                   })}
+                  
+                  {totalPages > 5 && page < totalPages - 2 && (
+                    <>
+                      <span className="text-gray-400">...</span>
+                      <button
+                        onClick={() => setPage(totalPages)}
+                        className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700"
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 <button
@@ -284,6 +335,35 @@ export default function NarratorsPage() {
                 </button>
               </div>
             )}
+
+            {/* Statistics */}
+            <div className="mt-8 bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <h3 className="text-lg font-semibold text-white mb-4">إحصائيات الرواة</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-emerald-400">{narrators.length}</div>
+                  <div className="text-sm text-gray-400">في هذه الصفحة</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-400">
+                    {narrators.filter(n => n.generation.includes('صحابي') || n.generation.includes('الأولى') || n.generation.includes('الثانية')).length}
+                  </div>
+                  <div className="text-sm text-gray-400">صحابة</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-purple-400">
+                    {narrators.filter(n => n.generation.includes('تابعي') || (n.generation.includes('الطبقة') && !n.generation.includes('الأولى') && !n.generation.includes('الثانية'))).length}
+                  </div>
+                  <div className="text-sm text-gray-400">تابعون وما بعد</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-orange-400">
+                    {narrators.filter(n => n._count?.narratedHadiths && n._count.narratedHadiths > 0).length}
+                  </div>
+                  <div className="text-sm text-gray-400">لديهم أحاديث</div>
+                </div>
+              </div>
+            </div>
           </>
         )}
       </div>

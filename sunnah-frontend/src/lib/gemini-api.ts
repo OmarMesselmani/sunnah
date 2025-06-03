@@ -11,7 +11,7 @@ export interface ExtractedNarrator {
   order: number;
   narrationType?: string;
   possibleVariations?: string[];
-  matchedNarratorId?: number;
+  matchedNarratorId?: string; // Changed from number to string for UUID
   matchedNarratorName?: string;
   isConfirmed?: boolean;
 }

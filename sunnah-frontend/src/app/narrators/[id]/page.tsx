@@ -1,3 +1,4 @@
+// File: sunnah-frontend/src/app/narrators/[id]/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,10 +16,10 @@ import {
   ExternalLink,
   Clock
 } from 'lucide-react';
-import { getNarratorById, getNarratorHadiths, getNarratorRelations, getDisplayDeathYears, getPrimaryDeathYear } from '@/lib/api';
+import { getNarratorById, getNarratorHadiths, getNarratorRelations, getDisplayDeathYears, getPrimaryDeathYear, isValidUUID } from '@/lib/api';
 
 interface Narrator {
-  id: number;
+  id: string; // Changed from number to string for UUID
   fullName: string;
   kunyah?: string;
   laqab?: string;
@@ -55,7 +56,7 @@ interface Hadith {
 }
 
 interface Relation {
-  id: number;
+  id: string; // Changed from number to string for UUID
   name: string;
   relation_count: number;
 }
@@ -72,15 +73,23 @@ export default function NarratorDetailPage() {
   const [activeTab, setActiveTab] = useState<'hadiths' | 'relations'>('hadiths');
   const [hadithsPage, setHadithsPage] = useState(1);
   const [totalHadithsPages, setTotalHadithsPages] = useState(1);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     if (narratorId) {
+      // Validate UUID format before making requests
+      if (!isValidUUID(narratorId)) {
+        setError('معرف الراوي غير صالح');
+        setLoading(false);
+        return;
+      }
+      
       loadNarratorData();
     }
   }, [narratorId]);
 
   useEffect(() => {
-    if (narratorId && activeTab === 'hadiths') {
+    if (narratorId && activeTab === 'hadiths' && isValidUUID(narratorId)) {
       loadHadiths();
     }
   }, [hadithsPage]);
@@ -88,21 +97,27 @@ export default function NarratorDetailPage() {
   const loadNarratorData = async () => {
     try {
       setLoading(true);
+      setError('');
       
       // Load narrator details
-      const narratorData = await getNarratorById(Number(narratorId));
+      const narratorData = await getNarratorById(narratorId);
       setNarrator(narratorData);
       
       // Load relations
-      const relationsData = await getNarratorRelations(Number(narratorId));
+      const relationsData = await getNarratorRelations(narratorId);
       setTeachers(relationsData.teachers || []);
       setStudents(relationsData.students || []);
       
       // Load first page of hadiths
       await loadHadiths();
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading narrator:', error);
+      if (error.message === 'Invalid narrator ID format') {
+        setError('معرف الراوي غير صالح');
+      } else {
+        setError('حدث خطأ في تحميل بيانات الراوي');
+      }
     } finally {
       setLoading(false);
     }
@@ -110,7 +125,7 @@ export default function NarratorDetailPage() {
 
   const loadHadiths = async () => {
     try {
-      const hadithsData = await getNarratorHadiths(Number(narratorId), {
+      const hadithsData = await getNarratorHadiths(narratorId, {
         page: hadithsPage,
         limit: 5
       });
@@ -196,12 +211,14 @@ export default function NarratorDetailPage() {
     );
   }
 
-  if (!narrator) {
+  if (error || !narrator) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <User className="mx-auto text-gray-500 mb-4" size={64} />
-          <p className="text-gray-400 text-xl mb-4">لم يتم العثور على الراوي</p>
+          <p className="text-gray-400 text-xl mb-4">
+            {error || 'لم يتم العثور على الراوي'}
+          </p>
           <Link
             href="/narrators"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300"

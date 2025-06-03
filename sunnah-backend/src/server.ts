@@ -67,6 +67,12 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Helper function to validate UUID
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
 // ============ نقاط نهاية الرواة ============
 
 // الحصول على جميع الرواة
@@ -204,7 +210,7 @@ app.post('/api/narrators', async (req, res) => {
 
     // استخدام Transaction لضمان سلامة البيانات
     const result = await prisma.$transaction(async (tx: any) => {
-      // إنشاء الراوي
+      // إنشاء الراوي - سيتم توليد UUID تلقائياً
       const narrator = await tx.narrator.create({
         data: {
           fullName: fullName.trim(),
@@ -220,7 +226,7 @@ app.post('/api/narrators', async (req, res) => {
       if (validDeathYears.length > 0) {
         await tx.narratorDeathYear.createMany({
           data: (validDeathYears as ValidDeathYear[]).map((dy: ValidDeathYear) => ({
-            narratorId: narrator.id,
+            narratorId: narrator.id, // UUID string
             year: dy.year,
             isPrimary: dy.isPrimary
           }))
@@ -288,12 +294,13 @@ app.get('/api/narrators/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    if (!id || isNaN(Number(id))) {
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
     
     const narrator = await prisma.narrator.findUnique({
-      where: { id: Number(id) },
+      where: { id },
       include: {
         deathYears: {
           orderBy: [
@@ -338,6 +345,11 @@ app.put('/api/narrators/:id', async (req, res) => {
       translation 
     } = req.body;
 
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+
     // تعريف واجهة لسنوات الوفاة
     interface ValidDeathYear {
       year: number;
@@ -362,7 +374,7 @@ app.put('/api/narrators/:id', async (req, res) => {
     const result = await prisma.$transaction(async (tx: any) => {
       // تحديث بيانات الراوي الأساسية
       const updatedNarrator = await tx.narrator.update({
-        where: { id: Number(id) },
+        where: { id },
         data: {
           fullName: fullName?.trim(),
           kunyah: kunyas?.trim() || null,
@@ -374,14 +386,14 @@ app.put('/api/narrators/:id', async (req, res) => {
 
       // حذف سنوات الوفاة الحالية
       await tx.narratorDeathYear.deleteMany({
-        where: { narratorId: Number(id) }
+        where: { narratorId: id }
       });
 
       // إضافة سنوات الوفاة الجديدة
       if (validDeathYears.length > 0) {
         await tx.narratorDeathYear.createMany({
           data: (validDeathYears as ValidDeathYear[]).map((dy: ValidDeathYear) => ({
-            narratorId: Number(id),
+            narratorId: id,
             year: dy.year,
             isPrimary: dy.isPrimary
           }))
@@ -390,7 +402,7 @@ app.put('/api/narrators/:id', async (req, res) => {
 
       // إرجاع الراوي المحدث
       return await tx.narrator.findUnique({
-        where: { id: Number(id) },
+        where: { id },
         include: {
           deathYears: {
             orderBy: [
@@ -432,9 +444,14 @@ app.delete('/api/narrators/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+
     // التحقق من وجود أحاديث مرتبطة
     const hadithCount = await prisma.hadithNarrator.count({
-      where: { narratorId: Number(id) }
+      where: { narratorId: id }
     });
 
     if (hadithCount > 0) {
@@ -446,12 +463,12 @@ app.delete('/api/narrators/:id', async (req, res) => {
     await prisma.$transaction(async (tx: any) => {
       // حذف سنوات الوفاة أولاً
       await tx.narratorDeathYear.deleteMany({
-        where: { narratorId: Number(id) }
+        where: { narratorId: id }
       });
 
       // ثم حذف الراوي
       await tx.narrator.delete({
-        where: { id: Number(id) }
+        where: { id }
       });
     });
 
@@ -477,11 +494,16 @@ app.get('/api/narrators/:id/hadiths', async (req, res) => {
     const { id } = req.params;
     const { page = 1, limit = 10 } = req.query;
     
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+    
     const hadiths = await prisma.hadith.findMany({
       where: {
         narrators: {
           some: {
-            narratorId: Number(id)
+            narratorId: id
           }
         }
       },
@@ -506,7 +528,7 @@ app.get('/api/narrators/:id/hadiths', async (req, res) => {
       where: {
         narrators: {
           some: {
-            narratorId: Number(id)
+            narratorId: id
           }
         }
       }
@@ -532,8 +554,13 @@ app.get('/api/narrators/:id/relations', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+    
     const teachers = await prisma.narratorRelation.findMany({
-      where: { narratorId: Number(id) },
+      where: { narratorId: id },
       include: {
         teacher: true
       },
@@ -543,7 +570,7 @@ app.get('/api/narrators/:id/relations', async (req, res) => {
     });
     
     const students = await prisma.narratorRelation.findMany({
-      where: { teacherId: Number(id) },
+      where: { teacherId: id },
       include: {
         narrator: true
       },
@@ -787,6 +814,20 @@ app.post('/api/hadiths', async (req, res) => {
       narrators 
     } = req.body;
     
+    // التحقق من صحة UUID للراوي الصحابي
+    if (musnadSahabiId && !isValidUUID(musnadSahabiId)) {
+      return res.status(400).json({ error: 'معرف الصحابي غير صالح' });
+    }
+    
+    // التحقق من صحة UUIDs للرواة
+    if (narrators && Array.isArray(narrators)) {
+      for (const narrator of narrators) {
+        if (narrator.narratorId && !isValidUUID(narrator.narratorId)) {
+          return res.status(400).json({ error: 'معرف راوي غير صالح' });
+        }
+      }
+    }
+    
     const hadith = await prisma.hadith.create({
       data: {
         sourceId,
@@ -862,6 +903,13 @@ app.post('/api/hadiths/batch', async (req, res) => {
           continue;
         }
         
+        // التحقق من صحة UUIDs
+        if (hadith.musnadSahabiId && !isValidUUID(hadith.musnadSahabiId)) {
+          failed++;
+          errors.push(`معرف صحابي غير صالح في حديث: ${hadith.hadithNumber || 'غير معروف'}`);
+          continue;
+        }
+        
         // إضافة الحديث
         const createdHadith = await prisma.hadith.create({
           data: {
@@ -871,7 +919,7 @@ app.post('/api/hadiths/batch', async (req, res) => {
             hadithNumber: hadith.hadithNumber || '',
             sanad: hadith.sanad || '',
             matn: hadith.matn,
-            musnadSahabiId: hadith.musnadSahabiId ? Number(hadith.musnadSahabiId) : undefined
+            musnadSahabiId: hadith.musnadSahabiId || undefined
           }
         });
         
@@ -879,24 +927,35 @@ app.post('/api/hadiths/batch', async (req, res) => {
         if (hadith.narrators && Array.isArray(hadith.narrators) && hadith.narrators.length > 0) {
           // تعريف واجهة لهيكل البيانات
           interface NarratorConnection {
-            narratorId: number;
+            narratorId: string;
             orderInChain: number;
             narrationType: string | null;
           }
 
-          const narratorConnections = hadith.narrators.map((n: any) => ({
-            narratorId: Number(n.narratorId),
-            orderInChain: n.orderInChain || 0,
-            narrationType: n.narrationType || null
-          }));
+          // التحقق من صحة UUIDs للرواة
+          let validNarrators = true;
+          for (const n of hadith.narrators) {
+            if (n.narratorId && !isValidUUID(n.narratorId)) {
+              validNarrators = false;
+              break;
+            }
+          }
           
-          // تحديد نوع المعامل nc
-          await prisma.hadithNarrator.createMany({
-            data: narratorConnections.map((nc: NarratorConnection) => ({
-              ...nc,
-              hadithId: createdHadith.id
-            }))
-          });
+          if (validNarrators) {
+            const narratorConnections = hadith.narrators.map((n: any) => ({
+              narratorId: n.narratorId,
+              orderInChain: n.orderInChain || 0,
+              narrationType: n.narrationType || null
+            }));
+            
+            // تحديد نوع المعامل nc
+            await prisma.hadithNarrator.createMany({
+              data: narratorConnections.map((nc: NarratorConnection) => ({
+                ...nc,
+                hadithId: createdHadith.id
+              }))
+            });
+          }
         }
         
         createdHadiths.push(createdHadith);

@@ -16,7 +16,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { analyzeIsnad, generateSearchQueries, ExtractedNarrator } from '@/lib/gemini-api';
-import { getNarrators } from '@/lib/api';
+import { getNarrators, isValidUUID } from '@/lib/api';
 
 interface HadithEntry {
   id: string; // temporary ID for UI
@@ -47,17 +47,6 @@ export default function BatchAddHadithPage() {
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0 });
-  
-  // حذف متغيرات الحالة المتعلقة بنموذج الإضافة البسيط
-  // const [isSubmitting, setIsSubmitting] = useState(false);
-  // const [formData, setFormData] = useState({
-  //   sourceId: '',
-  //   bookId: '',
-  //   chapterId: '',
-  //   hadithNumber: '',
-  //   sanad: '',
-  //   matn: ''
-  // });
 
   // إضافة حديث جديد
   const addHadith = () => {
@@ -143,7 +132,7 @@ export default function BatchAddHadithPage() {
               const match = result.narrators[0];
               return {
                 ...narrator,
-                matchedNarratorId: match.id,
+                matchedNarratorId: match.id, // Now UUID string
                 matchedNarratorName: match.fullName,
                 isConfirmed: false
               };
@@ -183,7 +172,7 @@ export default function BatchAddHadithPage() {
         // للتبسيط، نأخذ النتيجة الأولى
         const match = result.narrators[0];
         updateNarratorInHadith(hadithId, narratorIndex, {
-          matchedNarratorId: match.id,
+          matchedNarratorId: match.id, // Now UUID string
           matchedNarratorName: match.fullName,
           isConfirmed: true
         });
@@ -239,18 +228,18 @@ export default function BatchAddHadithPage() {
       try {
         // تعريف واضح لنوع البيانات لمتغير narratorsData
         interface NarratorData {
-          narratorId: number;
+          narratorId: string; // Changed from number to string for UUID
           orderInChain: number;
           narrationType?: string;
         }
         
         // تجهيز بيانات الرواة إذا كانت موجودة
         let narratorsData: NarratorData[] = [];
-        let musnadSahabiId: number | undefined = undefined;
+        let musnadSahabiId: string | undefined = undefined; // Changed from number to string
         
         if (hadith.isAnalyzed && hadith.extractedNarrators.length > 0) {
           narratorsData = hadith.extractedNarrators
-            .filter(n => n.matchedNarratorId) // استخدام الرواة المطابقين فقط
+            .filter(n => n.matchedNarratorId && isValidUUID(n.matchedNarratorId)) // Validate UUID
             .map(n => ({
               narratorId: n.matchedNarratorId!,
               orderInChain: n.order,
@@ -259,7 +248,9 @@ export default function BatchAddHadithPage() {
             
           // تحديد الصحابي إذا كان موجودًا ومطابقًا
           const sahabiNarrator = hadith.extractedNarrators[0];
-          musnadSahabiId = sahabiNarrator?.matchedNarratorId;
+          if (sahabiNarrator?.matchedNarratorId && isValidUUID(sahabiNarrator.matchedNarratorId)) {
+            musnadSahabiId = sahabiNarrator.matchedNarratorId;
+          }
         }
 
         const hadithData = {
@@ -280,7 +271,8 @@ export default function BatchAddHadithPage() {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to save hadith ${hadith.hadithNumber}`);
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Failed to save hadith ${hadith.hadithNumber}`);
         }
 
         savedCount++;
@@ -290,7 +282,8 @@ export default function BatchAddHadithPage() {
         setHadiths(prev => prev.filter(h => h.id !== hadith.id));
 
       } catch (error) {
-        errors.push(`خطأ في حفظ حديث رقم ${hadith.hadithNumber}`);
+        console.error('Error saving hadith:', error);
+        errors.push(`خطأ في حفظ حديث رقم ${hadith.hadithNumber}: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
       }
     }
 
@@ -632,15 +625,6 @@ export default function BatchAddHadithPage() {
             </button>
           </div>
         )}
-
-        {/* حذف قسم نموذج إضافة الحديث المنفرد البسيط الذي يظهر داخل الإطار الأحمر في الصورة */}
-        {/* <div className="mt-8">
-          <h2 className="text-2xl font-bold text-white mb-4">إضافة حديث جديد</h2>
-          
-          <form onSubmit={handleSubmit} className="space-y-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
-            ... محتوى النموذج ...
-          </form>
-        </div> */}
       </div>
     </div>
   );

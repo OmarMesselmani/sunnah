@@ -11,9 +11,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// نموذج الرواة
+// نموذج الرواة - تم تحويل ID إلى UUID
 model Narrator {
-  id               Int      @id @default(autoincrement())
+  id               String   @id @default(uuid()) @db.VarChar(36)
   fullName         String   @db.VarChar(255)
   kunyah           String?  @db.VarChar(255)
   laqab            String?  @db.VarChar(255)
@@ -38,7 +38,7 @@ model Narrator {
 // نموذج جديد لسنوات الوفاة المتعددة
 model NarratorDeathYear {
   id         Int      @id @default(autoincrement())
-  narratorId Int
+  narratorId String   @db.VarChar(36)
   year       Int
   isPrimary  Boolean  @default(false) // هل هذه السنة الأساسية
   source     String?  @db.VarChar(255) // مصدر هذا التاريخ (اختياري)
@@ -105,7 +105,7 @@ model Hadith {
   hadithNumber   String   @db.VarChar(50)
   sanad          String   @db.Text
   matn           String   @db.Text
-  musnadSahabiId Int?
+  musnadSahabiId String?  @db.VarChar(36)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -126,7 +126,7 @@ model Hadith {
 model HadithNarrator {
   id            Int      @id @default(autoincrement())
   hadithId      Int
-  narratorId    Int
+  narratorId    String   @db.VarChar(36)
   orderInChain  Int
   narrationType String?  @db.VarChar(50)
   createdAt     DateTime @default(now())
@@ -143,8 +143,8 @@ model HadithNarrator {
 // نموذج علاقات الرواة
 model NarratorRelation {
   id            Int      @id @default(autoincrement())
-  narratorId    Int
-  teacherId     Int
+  narratorId    String   @db.VarChar(36)
+  teacherId     String   @db.VarChar(36)
   relationCount Int      @default(1)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
