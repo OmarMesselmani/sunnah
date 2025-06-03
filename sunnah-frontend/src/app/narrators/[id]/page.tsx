@@ -149,6 +149,7 @@ export default function NarratorDetailPage() {
     }
   };
 
+  // تعديل دالة renderDeathYears لعرض سنوات الوفاة بدون ترجيح
   const renderDeathYears = (narrator: Narrator) => {
     if (!narrator.deathYears || narrator.deathYears.length === 0) {
       // التوافق مع النظام القديم
@@ -183,13 +184,8 @@ export default function NarratorDetailPage() {
         <div className="mr-6 space-y-1">
           {narrator.deathYears.map((deathYear, index) => (
             <div key={deathYear.id} className="flex items-center gap-2 text-sm">
-              <span className={`inline-block w-2 h-2 rounded-full ${
-                deathYear.isPrimary ? 'bg-emerald-400' : 'bg-gray-500'
-              }`}></span>
+              <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
               <span>{deathYear.year} هـ</span>
-              {deathYear.isPrimary && (
-                <span className="text-emerald-400 text-xs">(الأرجح)</span>
-              )}
               {deathYear.source && (
                 <span className="text-gray-500 text-xs">({deathYear.source})</span>
               )}
@@ -234,7 +230,7 @@ export default function NarratorDetailPage() {
   return (
     <div className="min-h-screen bg-gray-900 py-8 text-gray-100">
       <div className="container mx-auto px-4">
-        {/* Back Button */}
+        {/* زر العودة */}
         <Link
           href="/narrators"
           className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 mb-6"
@@ -243,7 +239,7 @@ export default function NarratorDetailPage() {
           العودة لقائمة الرواة
         </Link>
 
-        {/* Narrator Header */}
+        {/* الخانة العليا - معلومات الراوي الأساسية */}
         <div className="bg-gray-800 rounded-lg shadow-md p-8 mb-8 border border-gray-700">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
             <div className="flex-1">
@@ -272,7 +268,7 @@ export default function NarratorDetailPage() {
               </span>
             </div>
 
-            {/* Stats */}
+            {/* الإحصائيات */}
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-gray-700/50 rounded-lg">
                 <div className="text-2xl font-bold text-emerald-400">
@@ -313,172 +309,154 @@ export default function NarratorDetailPage() {
             </div>
           </div>
 
+          {/* نبذة عن الراوي إذا وجدت */}
           {narrator.biography && (
             <div className="mt-6 pt-6 border-t border-gray-700">
               <h3 className="font-semibold text-lg mb-2 text-white">نبذة عن الراوي</h3>
               <p className="text-gray-300 leading-relaxed">{narrator.biography}</p>
             </div>
           )}
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-gray-800 rounded-lg shadow-md border border-gray-700">
-          <div className="flex border-b border-gray-700">
-            <button
-              onClick={() => setActiveTab('hadiths')}
-              className={`flex-1 px-6 py-4 font-semibold transition-colors ${
-                activeTab === 'hadiths'
-                  ? 'bg-gray-700 text-blue-400 border-b-2 border-blue-400'
-                  : 'text-gray-400 hover:bg-gray-700/50'
-              }`}
-            >
-              الأحاديث التي رواها
-            </button>
-            <button
-              onClick={() => setActiveTab('relations')}
-              className={`flex-1 px-6 py-4 font-semibold transition-colors ${
-                activeTab === 'relations'
-                  ? 'bg-gray-700 text-blue-400 border-b-2 border-blue-400'
-                  : 'text-gray-400 hover:bg-gray-700/50'
-              }`}
-            >
-              الشيوخ والتلاميذ
-            </button>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'hadiths' ? (
+          
+          {/* قسم الشيوخ والتلاميذ - منقول إلى الخانة العليا */}
+          <div className="mt-6 pt-6 border-t border-gray-700">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* الشيوخ */}
               <div>
-                {hadiths.length === 0 ? (
-                  <p className="text-center text-gray-400 py-8">
-                    لا توجد أحاديث مسجلة لهذا الراوي
-                  </p>
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
+                  <Users className="text-purple-400" size={24} />
+                  الشيوخ الذين روى عنهم
+                </h3>
+                {teachers.length === 0 ? (
+                  <p className="text-gray-400">لا يوجد شيوخ مسجلون</p>
                 ) : (
-                  <>
-                    <div className="space-y-6">
-                      {hadiths.map((hadith) => (
-                        <Link
-                          key={hadith.id}
-                          href={`/hadiths/${hadith.id}`}
-                          className="block border border-gray-700 rounded-lg p-6 hover:bg-gray-700 transition-all group"
-                        >
-                          <div className="flex items-start justify-between gap-4 mb-3">
-                            <div className="flex items-center gap-3 text-sm text-gray-400">
-                              <span className="flex items-center gap-1">
-                                <Hash size={16} />
-                                {hadith.hadithNumber}
-                              </span>
-                              <span className="font-semibold text-blue-400">
-                                {hadith.source.name}
-                              </span>
-                              {hadith.book?.name && (
-                                <span>• {hadith.book.name}</span>
-                              )}
-                            </div>
-                            <ExternalLink 
-                              size={18} 
-                              className="text-gray-500 group-hover:text-blue-400 transition-colors"
-                            />
-                          </div>
-                          
-                          {hadith.chapter?.name && (
-                            <p className="text-sm text-gray-400 mb-3">
-                              <span className="font-semibold">الباب:</span> {hadith.chapter.name}
-                            </p>
-                          )}
-                          
-                          <p className="text-gray-300 leading-relaxed line-clamp-3 group-hover:text-white">
-                            {hadith.matn}
-                          </p>
-                          
-                          <p className="text-sm text-blue-400 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            اضغط لعرض تفاصيل الحديث الكامل ←
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
-
-                    {/* Pagination */}
-                    {totalHadithsPages > 1 && (
-                      <div className="flex justify-center gap-2 mt-6">
-                        <button
-                          onClick={() => setHadithsPage(Math.max(1, hadithsPage - 1))}
-                          disabled={hadithsPage === 1}
-                          className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
-                        >
-                          السابق
-                        </button>
-                        <span className="px-4 py-2 text-gray-300">
-                          صفحة {hadithsPage} من {totalHadithsPages}
+                  <div className="space-y-3">
+                    {teachers.map((teacher) => (
+                      <Link
+                        key={teacher.id}
+                        href={`/narrators/${teacher.id}`}
+                        className="flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        <span className="font-medium text-white">{teacher.name}</span>
+                        <span className="text-sm text-gray-400 flex items-center gap-1">
+                          {teacher.relation_count}
+                          <LinkIcon size={14} />
                         </span>
-                        <button
-                          onClick={() => setHadithsPage(Math.min(totalHadithsPages, hadithsPage + 1))}
-                          disabled={hadithsPage === totalHadithsPages}
-                          className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
-                        >
-                          التالي
-                        </button>
-                      </div>
-                    )}
-                  </>
+                      </Link>
+                    ))}
+                  </div>
                 )}
               </div>
+
+              {/* التلاميذ */}
+              <div>
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
+                  <Users className="text-orange-400" size={24} />
+                  التلاميذ الذين رووا عنه
+                </h3>
+                {students.length === 0 ? (
+                  <p className="text-gray-400">لا يوجد تلاميذ مسجلون</p>
+                ) : (
+                  <div className="space-y-3">
+                    {students.map((student) => (
+                      <Link
+                        key={student.id}
+                        href={`/narrators/${student.id}`}
+                        className="flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
+                      >
+                        <span className="font-medium text-white">{student.name}</span>
+                        <span className="text-sm text-gray-400 flex items-center gap-1">
+                          {student.relation_count}
+                          <LinkIcon size={14} />
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* الخانة السفلية - الأحاديث فقط */}
+        <div className="bg-gray-800 rounded-lg shadow-md border border-gray-700">
+          <div className="p-6">
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+              <Book className="text-emerald-400" size={24} />
+              الأحاديث التي رواها
+            </h2>
+            
+            {hadiths.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">
+                لا توجد أحاديث مسجلة لهذا الراوي
+              </p>
             ) : (
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Teachers */}
-                <div>
-                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
-                    <Users className="text-purple-400" size={24} />
-                    الشيوخ الذين روى عنهم
-                  </h3>
-                  {teachers.length === 0 ? (
-                    <p className="text-gray-400">لا يوجد شيوخ مسجلون</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {teachers.map((teacher) => (
-                        <Link
-                          key={teacher.id}
-                          href={`/narrators/${teacher.id}`}
-                          className="flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
-                        >
-                          <span className="font-medium text-white">{teacher.name}</span>
-                          <span className="text-sm text-gray-400 flex items-center gap-1">
-                            {teacher.relation_count}
-                            <LinkIcon size={14} />
+              <>
+                <div className="space-y-6">
+                  {hadiths.map((hadith) => (
+                    <Link
+                      key={hadith.id}
+                      href={`/hadiths/${hadith.id}`}
+                      className="block border border-gray-700 rounded-lg p-6 hover:bg-gray-700 transition-all group"
+                    >
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex items-center gap-3 text-sm text-gray-400">
+                          <span className="flex items-center gap-1">
+                            <Hash size={16} />
+                            {hadith.hadithNumber}
                           </span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
+                          <span className="font-semibold text-blue-400">
+                            {hadith.source.name}
+                          </span>
+                          {hadith.book?.name && (
+                            <span>• {hadith.book.name}</span>
+                          )}
+                        </div>
+                        <ExternalLink 
+                          size={18} 
+                          className="text-gray-500 group-hover:text-blue-400 transition-colors"
+                        />
+                      </div>
+                      
+                      {hadith.chapter?.name && (
+                        <p className="text-sm text-gray-400 mb-3">
+                          <span className="font-semibold">الباب:</span> {hadith.chapter.name}
+                        </p>
+                      )}
+                      
+                      <p className="text-gray-300 leading-relaxed line-clamp-3 group-hover:text-white">
+                        {hadith.matn}
+                      </p>
+                      
+                      <p className="text-sm text-blue-400 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        اضغط لعرض تفاصيل الحديث الكامل ←
+                      </p>
+                    </Link>
+                  ))}
                 </div>
 
-                {/* Students */}
-                <div>
-                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
-                    <Users className="text-orange-400" size={24} />
-                    التلاميذ الذين رووا عنه
-                  </h3>
-                  {students.length === 0 ? (
-                    <p className="text-gray-400">لا يوجد تلاميذ مسجلون</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {students.map((student) => (
-                        <Link
-                          key={student.id}
-                          href={`/narrators/${student.id}`}
-                          className="flex items-center justify-between p-3 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
-                        >
-                          <span className="font-medium text-white">{student.name}</span>
-                          <span className="text-sm text-gray-400 flex items-center gap-1">
-                            {student.relation_count}
-                            <LinkIcon size={14} />
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+                {/* ترقيم الصفحات */}
+                {totalHadithsPages > 1 && (
+                  <div className="flex justify-center gap-2 mt-6">
+                    <button
+                      onClick={() => setHadithsPage(Math.max(1, hadithsPage - 1))}
+                      disabled={hadithsPage === 1}
+                      className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
+                    >
+                      السابق
+                    </button>
+                    <span className="px-4 py-2 text-gray-300">
+                      صفحة {hadithsPage} من {totalHadithsPages}
+                    </span>
+                    <button
+                      onClick={() => setHadithsPage(Math.min(totalHadithsPages, hadithsPage + 1))}
+                      disabled={hadithsPage === totalHadithsPages}
+                      className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
+                    >
+                      التالي
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

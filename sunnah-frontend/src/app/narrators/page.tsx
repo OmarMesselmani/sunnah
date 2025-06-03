@@ -124,13 +124,13 @@ export default function NarratorsPage() {
       );
     }
 
-    // عدة سنوات وفاة محتملة
+    // عدة سنوات وفاة محتملة - استخدام Calendar بدلاً من Clock لتوحيد الأيقونات
     const primaryYear = narrator.deathYears.find(dy => dy.isPrimary);
     const displayYear = primaryYear ? primaryYear.year : narrator.deathYears[0].year;
     
     return (
       <div className="flex items-center gap-1" title={`سنوات محتملة: ${narrator.deathYears.map(dy => dy.year).join('، ')}`}>
-        <Clock size={16} className="text-orange-400" />
+        <Calendar size={16} />
         <span>{displayYear} هـ</span>
         <span className="text-xs text-orange-400">({narrator.deathYears.length}+)</span>
       </div>
@@ -212,8 +212,9 @@ export default function NarratorsPage() {
         ) : (
           <>
             {/* Narrators Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {narrators.map((narrator) => (
+                // تعديل بطاقة الراوي في الشبكة
                 <Link
                   key={narrator.id}
                   href={`/narrators/${narrator.id}`}
@@ -246,18 +247,12 @@ export default function NarratorsPage() {
                       {/* عرض معلومات سنوات الوفاة المحدثة */}
                       {renderDeathYearsInfo(narrator)}
                       
-                      {narrator._count?.narratedHadiths ? (
-                        <div className="flex items-center gap-1">
-                          <User size={16} />
-                          <span>{narrator._count.narratedHadiths} حديث</span>
-                        </div>
-                      ) : null}
+                      {/* عرض عدد الأحاديث */}
+                      <div className="flex items-center gap-1">
+                        <User size={16} />
+                        <span>{narrator._count?.narratedHadiths || 0} حديث</span>
+                      </div>
                     </div>
-                  </div>
-
-                  {/* Display UUID for debugging (remove in production) */}
-                  <div className="mt-2 text-xs text-gray-500 font-mono">
-                    {narrator.id}
                   </div>
                 </Link>
               ))}
@@ -335,35 +330,6 @@ export default function NarratorsPage() {
                 </button>
               </div>
             )}
-
-            {/* Statistics */}
-            <div className="mt-8 bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <h3 className="text-lg font-semibold text-white mb-4">إحصائيات الرواة</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div>
-                  <div className="text-2xl font-bold text-emerald-400">{narrators.length}</div>
-                  <div className="text-sm text-gray-400">في هذه الصفحة</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-400">
-                    {narrators.filter(n => n.generation.includes('صحابي') || n.generation.includes('الأولى') || n.generation.includes('الثانية')).length}
-                  </div>
-                  <div className="text-sm text-gray-400">صحابة</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-purple-400">
-                    {narrators.filter(n => n.generation.includes('تابعي') || (n.generation.includes('الطبقة') && !n.generation.includes('الأولى') && !n.generation.includes('الثانية'))).length}
-                  </div>
-                  <div className="text-sm text-gray-400">تابعون وما بعد</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-orange-400">
-                    {narrators.filter(n => n._count?.narratedHadiths && n._count.narratedHadiths > 0).length}
-                  </div>
-                  <div className="text-sm text-gray-400">لديهم أحاديث</div>
-                </div>
-              </div>
-            </div>
           </>
         )}
       </div>
