@@ -460,6 +460,17 @@ export default function NarratorDetailPage() {
             )}
           </div>
         </div>
+
+        {/* أضف هذا الزر تحت بيانات الراوي */}
+        {narrator._count?.musnadHadiths && narrator._count.musnadHadiths > 0 && (
+          <Link
+            href={`/musnad/${narrator.id}`}
+            className="inline-flex items-center gap-2 mt-4 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <Scroll size={18} />
+            عرض المسند ({narrator._count.musnadHadiths} حديث)
+          </Link>
+        )}
       </div>
     </div>
   );

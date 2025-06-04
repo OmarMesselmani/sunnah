@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, User, Calendar, ChevronRight, Filter, UserPlus, Clock } from 'lucide-react';
+import { Search, User, Calendar, ChevronRight, Filter, UserPlus, Clock, Scroll } from 'lucide-react';
 import { getNarrators, getDisplayDeathYears, getPrimaryDeathYear } from '@/lib/api';
 import Link from 'next/link';
 
@@ -22,6 +22,7 @@ interface Narrator {
   deathYears?: NarratorDeathYear[];
   _count?: {
     narratedHadiths: number;
+    musnadHadiths: number;
   };
 }
 
@@ -214,7 +215,6 @@ export default function NarratorsPage() {
             {/* Narrators Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {narrators.map((narrator) => (
-                // تعديل بطاقة الراوي في الشبكة
                 <Link
                   key={narrator.id}
                   href={`/narrators/${narrator.id}`}
@@ -254,6 +254,18 @@ export default function NarratorsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* رابط المسند - مع إصلاح الوصول للقيمة */}
+                  {narrator._count?.musnadHadiths && narrator._count.musnadHadiths > 0 && (
+                    <Link
+                      href={`/musnad/${narrator.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1 mt-2"
+                    >
+                      <Scroll size={14} />
+                      المسند ({narrator._count?.musnadHadiths})
+                    </Link>
+                  )}
                 </Link>
               ))}
             </div>

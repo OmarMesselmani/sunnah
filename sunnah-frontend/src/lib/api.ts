@@ -75,6 +75,7 @@ export interface Hadith {
     isVerified: boolean;
     reviewedAt: string;
   }>;
+  chain?: string; // إضافة حقل chain
 }
 
 export interface NarratorRelation {
@@ -92,6 +93,12 @@ export interface PaginationInfo {
 
 export interface NarratorsResponse {
   narrators: Narrator[];
+  pagination: PaginationInfo;
+}
+
+// إضافة واجهة MusnadResponse هنا
+export interface MusnadResponse {
+  hadiths: Hadith[];
   pagination: PaginationInfo;
 }
 
@@ -181,6 +188,14 @@ export const deleteNarrator = async (id: string) => {
 export const searchNarrators = async (query: string) => {
   const response = await api.get<Narrator[]>('/narrators/search', { 
     params: { query } 
+  });
+  return response.data;
+};
+
+// إضافة دالة البحث عن الرواة بالاسم
+export const searchNarratorsByName = async (search: string) => {
+  const response = await api.get<NarratorsResponse>('/narrators', { 
+    params: { search, limit: 10 } 
   });
   return response.data;
 };
@@ -304,6 +319,29 @@ export const getPrimaryDeathYear = (narrator: Narrator): number | null => {
   }
   
   return narrator.deathYear || null;
+};
+
+export const getNarratorMusnad = async (
+  id: string,
+  params?: { page?: number; limit?: number }
+) => {
+  if (!isValidUUID(id)) {
+    throw new Error('معرف الراوي غير صالح');
+  }
+  
+  const response = await api.get<MusnadResponse>(`/narrators/${id}/musnad`, { 
+    params 
+  });
+  return response.data;
+};
+
+// في صفحة المسند
+export const adaptHadiths = (apiHadiths: any[]): Hadith[] => {
+  return apiHadiths.map(hadith => ({
+    ...hadith,
+    chain: hadith.sanad, // تحويل sanad إلى chain
+    // أي تحويلات أخرى مطلوبة
+  }));
 };
 
 export default api;

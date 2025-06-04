@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Save, 
@@ -13,10 +13,12 @@ import {
   X,
   Copy,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  UserPlus,
+  Edit // إضافة أيقونة Edit هنا
 } from 'lucide-react';
 import { analyzeIsnad, generateSearchQueries, ExtractedNarrator } from '@/lib/gemini-api';
-import { getNarrators, isValidUUID } from '@/lib/api';
+import { getNarrators, isValidUUID, searchNarratorsByName } from '@/lib/api';
 
 interface HadithEntry {
   id: string; // temporary ID for UI
@@ -29,6 +31,50 @@ interface HadithEntry {
   isExpanded: boolean;
   analysisError?: string;
 }
+
+// إضافة الواجهات المفقودة
+interface Narrator {
+  id: string;
+  fullName: string;
+  kunyah?: string;
+  laqab?: string;
+  generation: string;
+  deathYear?: number;
+  deathYears?: Array<{
+    id: number;
+    year: number;
+    isPrimary: boolean;
+    source?: string;
+  }>;
+}
+
+interface HadithNarrator {
+  id: string | number;
+  orderInChain: number;
+  narrationType?: string;
+  narrator: Narrator;
+}
+
+// أضف هذه الدالة قبل دالة المكون الرئيسية
+const getGenerationColor = (generation: string) => {
+  switch (generation) {
+    case 'صحابي':
+    case 'صحابية':
+    case 'الطبقة الأولى':
+      return 'bg-green-900/30 text-green-400';
+    case 'تابعي':
+    case 'تابعية':
+    case 'الطبقة الثانية':
+    case 'الطبقة الثالثة':
+      return 'bg-blue-900/30 text-blue-400';
+    case 'تابع التابعين':
+    case 'الطبقة الرابعة':
+    case 'الطبقة الخامسة':
+      return 'bg-purple-900/30 text-purple-400';
+    default:
+      return 'bg-gray-800/50 text-gray-300';
+  }
+};
 
 export default function BatchAddHadithPage() {
   const [hadiths, setHadiths] = useState<HadithEntry[]>([
@@ -47,6 +93,28 @@ export default function BatchAddHadithPage() {
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // إضافة حالات للتحكم في المودال وعملية البحث عن الرواة
+  const [showManualNarratorModal, setShowManualNarratorModal] = useState(false);
+  const [narratorSearch, setNarratorSearch] = useState('');
+  const [narratorSearchResults, setNarratorSearchResults] = useState<Narrator[]>([]);
+  const [selectedNarrator, setSelectedNarrator] = useState<Narrator | null>(null);
+  const [narratorOrder, setNarratorOrder] = useState(1);
+
+  const [currentHadithId, setCurrentHadithId] = useState<string | null>(null);
+  const [narrators, setNarrators] = useState<HadithNarrator[]>([]);
+
+  // أضف هذه المتغيرات إلى متغيرات الحالة في المكون
+  const [showAddNarratorModal, setShowAddNarratorModal] = useState(false);
+  const [newNarratorData, setNewNarratorData] = useState({
+    fullName: '',
+    kunyah: '',
+    generation: '',
+    deathYear: ''
+  });
+  const [currentNarratorIndex, setCurrentNarratorIndex] = useState<number>(-1);
+  const [isAddingNarrator, setIsAddingNarrator] = useState(false);
 
   // إضافة حديث جديد
   const addHadith = () => {
@@ -156,6 +224,27 @@ export default function BatchAddHadithPage() {
     updatedNarrators[narratorIndex] = { ...updatedNarrators[narratorIndex], ...updates };
 
     updateHadith(hadithId, { extractedNarrators: updatedNarrators });
+  };
+
+  // حذف راوي من حديث معين
+  const removeNarratorFromHadith = (hadithId: string, narratorIndex: number) => {
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+
+    const updatedNarrators = [...hadith.extractedNarrators];
+    updatedNarrators.splice(narratorIndex, 1);
+
+    // تحديث ترتيب الرواة المتبقيين بعد الحذف
+    const reorderedNarrators = updatedNarrators.map((narrator, idx) => ({
+      ...narrator,
+      order: idx + 1 // بدء الترتيب من 1
+    }));
+
+    updateHadith(hadithId, { 
+      extractedNarrators: reorderedNarrators,
+      // إذا لم يتبق أي راوي، نعتبر أن الحديث غير محلل
+      isAnalyzed: reorderedNarrators.length > 0 
+    });
   };
 
   // البحث عن راوي واحد
@@ -338,6 +427,216 @@ export default function BatchAddHadithPage() {
   // حذف حديث
   const removeHadith = (id: string) => {
     setHadiths(hadiths.filter(h => h.id !== id));
+  };
+
+  // تحليل السند
+  const analyzeChain = async () => {
+    setIsLoading(true);
+
+    for (const hadith of hadiths) {
+      if (!hadith.isAnalyzed || hadith.extractedNarrators.some(n => !n.matchedNarratorId)) {
+        await analyzeSingleHadith(hadith.id);
+      }
+    }
+
+    setIsLoading(false);
+  };
+
+  // دالة البحث عن الرواة
+  useEffect(() => {
+    const searchNarrators = async () => {
+      if (narratorSearch.trim().length < 2) {
+        setNarratorSearchResults([]);
+        return;
+      }
+
+      try {
+        const result = await searchNarratorsByName(narratorSearch);
+        setNarratorSearchResults(result.narrators || []);
+      } catch (error) {
+        console.error('Error searching narrators:', error);
+      }
+    };
+
+    const handler = setTimeout(searchNarrators, 300);
+    return () => clearTimeout(handler);
+  }, [narratorSearch]);
+
+  // دالة اختيار راوي - تم تعديلها لتتوافق مع السلوك الجديد
+  const selectNarrator = (narrator: Narrator) => {
+    setSelectedNarrator(narrator);
+    setNarratorSearch(narrator.fullName); // وضع اسم الراوي في حقل البحث مباشرة
+    setNarratorSearchResults([]); // إخفاء نتائج البحث بعد الاختيار
+  };
+
+  // دالة إضافة الراوي إلى السند
+  const handleAddNarrator = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedNarrator || !currentHadithId) return;
+
+    const newNarrator: HadithNarrator = {
+      id: `temp-${Date.now()}`,
+      orderInChain: narratorOrder,
+      narrator: selectedNarrator
+    };
+
+    // تحديث قائمة الرواة المحلية
+    const updatedNarrators = [...narrators, newNarrator]
+      .sort((a, b) => a.orderInChain - b.orderInChain);
+    
+    setNarrators(updatedNarrators);
+    
+    // تحويل HadithNarrator إلى ExtractedNarrator لتحديث الحديث
+    const extractedNarrator: ExtractedNarrator = {
+      name: selectedNarrator.fullName,
+      order: narratorOrder,
+      matchedNarratorId: selectedNarrator.id,
+      matchedNarratorName: selectedNarrator.fullName,
+      isConfirmed: true,
+      generation: selectedNarrator.generation
+    };
+
+    // تحديث الحديث المختار
+    const hadith = hadiths.find(h => h.id === currentHadithId);
+    if (hadith) {
+      const updatedExtractedNarrators = [...hadith.extractedNarrators, extractedNarrator]
+        .sort((a, b) => a.order - b.order);
+      
+      updateHadith(currentHadithId, { 
+        extractedNarrators: updatedExtractedNarrators,
+        isAnalyzed: true 
+      });
+    }
+    
+    // إعادة تعيين الحقول وإغلاق المودال
+    setSelectedNarrator(null);
+    setNarratorSearch('');
+    setNarratorOrder((hadith?.extractedNarrators.length || 0) + 2);
+    setShowManualNarratorModal(false);
+  };
+
+  // تحديث متغير narrators عند اختيار حديث
+  useEffect(() => {
+    if (currentHadithId) {
+      const hadith = hadiths.find(h => h.id === currentHadithId);
+      if (hadith) {
+        // تحويل extractedNarrators إلى HadithNarrator[]
+        const hadithNarrators: HadithNarrator[] = hadith.extractedNarrators.map(n => ({
+          id: n.matchedNarratorId || `temp-${Date.now()}-${Math.random()}`,
+          orderInChain: n.order,
+          narrator: {
+            id: n.matchedNarratorId || '',
+            fullName: n.name,
+            generation: n.generation || ''
+          }
+        }));
+        setNarrators(hadithNarrators);
+      }
+    } else {
+      setNarrators([]);
+    }
+  }, [currentHadithId, hadiths]);
+
+  // دالة عرض مودال إضافة/بحث راوي
+  const handleShowAddNarratorModal = (hadithId: string, narratorIndex: number, mode: 'add' | 'search' = 'add') => {
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+    
+    const narrator = hadith.extractedNarrators[narratorIndex];
+    
+    setCurrentHadithId(hadithId);
+    setCurrentNarratorIndex(narratorIndex);
+    
+    if (mode === 'add') {
+      // وضع إضافة راوي جديد
+      setNewNarratorData({
+        fullName: narrator.name,
+        kunyah: '',
+        generation: '',
+        deathYear: ''
+      });
+      setShowAddNarratorModal(true);
+    } else {
+      // وضع البحث عن راوي
+      setNarratorSearch(narrator.name);
+      setSelectedNarrator(null);
+      setShowManualNarratorModal(true);
+    }
+  };
+
+  // دالة إضافة راوي جديد
+  const handleAddNewNarrator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentHadithId || currentNarratorIndex === -1) return;
+    
+    try {
+      setIsAddingNarrator(true);
+      
+      // طلب إضافة راوي جديد إلى API
+      const response = await fetch('http://localhost:5000/api/narrators', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fullName: newNarratorData.fullName,
+          kunyah: newNarratorData.kunyah || undefined,
+          generation: newNarratorData.generation,
+          deathYears: newNarratorData.deathYear ? 
+            [{ year: parseInt(newNarratorData.deathYear), isPrimary: true }] : 
+            undefined
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('فشل إضافة الراوي');
+      }
+
+      const newNarrator = await response.json();
+      
+      // تحديث الحديث بمعرف الراوي الجديد
+      updateNarratorInHadith(currentHadithId, currentNarratorIndex, {
+        matchedNarratorId: newNarrator.id,
+        matchedNarratorName: newNarrator.fullName,
+        isConfirmed: true,
+        generation: newNarrator.generation
+      });
+      
+      // إغلاق النافذة المنبثقة وإعادة تعيين البيانات
+      setShowAddNarratorModal(false);
+      setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '' });
+      setCurrentNarratorIndex(-1);
+      
+    } catch (error) {
+      console.error('Error adding narrator:', error);
+      alert('حدث خطأ أثناء إضافة الراوي');
+    } finally {
+      setIsAddingNarrator(false);
+    }
+  };
+
+  // دالة لإلغاء تطابق الراوي الحالي
+  const resetNarratorMatch = (hadithId: string, narratorIndex: number) => {
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+    
+    const narrator = hadith.extractedNarrators[narratorIndex];
+    
+    // إلغاء المطابقة أولاً
+    updateNarratorInHadith(hadithId, narratorIndex, {
+      matchedNarratorId: undefined,
+      matchedNarratorName: undefined,
+      isConfirmed: false,
+      generation: undefined
+    });
+
+    // فتح نافذة بحث متقدمة
+    setCurrentHadithId(hadithId);
+    setCurrentNarratorIndex(narratorIndex);
+    setNarratorSearch(narrator.name); // ملء حقل البحث باسم الراوي الحالي
+    setSelectedNarrator(null);
+    setShowManualNarratorModal(true); // فتح النافذة المنبثقة للبحث
   };
 
   return (
@@ -530,14 +829,30 @@ export default function BatchAddHadithPage() {
                       rows={3}
                       className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
-                    <button
-                      onClick={() => analyzeSingleHadith(hadith.id)}
-                      disabled={!hadith.sanad || isAnalyzingAll}
-                      className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                    >
-                      <Brain size={16} />
-                      تحليل السند
-                    </button>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => analyzeSingleHadith(hadith.id)}
+                        disabled={!hadith.sanad || isAnalyzingAll}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        <Brain size={16} />
+                        تحليل السند
+                      </button>
+                      
+                      {/* زر إضافة راوي يدوياً نُقل إلى هنا */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentHadithId(hadith.id);
+                          setNarratorOrder((hadith.extractedNarrators.length || 0) + 1);
+                          setShowManualNarratorModal(true);
+                        }}
+                        className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 flex items-center gap-1"
+                      >
+                        <UserPlus size={16} />
+                        إضافة راوي يدوياً
+                      </button>
+                    </div>
                   </div>
 
                   {hadith.analysisError && (
@@ -565,28 +880,50 @@ export default function BatchAddHadithPage() {
                               onChange={(e) => updateNarratorInHadith(hadith.id, nIndex, { name: e.target.value })}
                               className="flex-1 px-2 py-1 bg-gray-600 border border-gray-500 text-white rounded text-sm focus:ring-1 focus:ring-blue-500"
                             />
-                            <select
-                              value={narrator.narrationType || ''}
-                              onChange={(e) => updateNarratorInHadith(hadith.id, nIndex, { narrationType: e.target.value })}
-                              className="px-2 py-1 bg-gray-600 border border-gray-500 text-white rounded text-sm focus:ring-1 focus:ring-blue-500"
+                            
+                            {/* زر حذف راوي */}
+                            <button
+                              onClick={() => removeNarratorFromHadith(hadith.id, nIndex)}
+                              className="text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-gray-600"
+                              title="حذف الراوي"
                             >
-                              <option value="">-</option>
-                              <option value="حدثنا">حدثنا</option>
-                              <option value="أخبرنا">أخبرنا</option>
-                              <option value="عن">عن</option>
-                              <option value="قال">قال</option>
-                            </select>
+                              <X size={14} />
+                            </button>
+                            
                             {narrator.matchedNarratorId ? (
-                              <span className="text-emerald-400 text-sm">
-                                ✓ {narrator.matchedNarratorName}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-emerald-400 text-sm">
+                                  ✓ {narrator.matchedNarratorName}
+                                </span>
+                                <button
+                                  onClick={() => resetNarratorMatch(hadith.id, nIndex)}
+                                  className="text-gray-400 hover:text-yellow-400 p-1 rounded-full hover:bg-gray-600"
+                                  title="تغيير الراوي"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                              </div>
                             ) : (
-                              <button
-                                onClick={() => searchSingleNarrator(hadith.id, nIndex)}
-                                className="text-blue-400 hover:text-blue-300 text-sm"
-                              >
-                                <Search size={14} className="inline" /> بحث
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => searchSingleNarrator(hadith.id, nIndex)}
+                                  className="text-blue-400 hover:text-blue-300 text-sm flex items-center"
+                                >
+                                  <Search size={14} className="mr-1" /> بحث
+                                </button>
+                                
+                                {/* زر إضافة راوي جديد */}
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShowAddNarratorModal(hadith.id, nIndex);
+                                  }}
+                                  className="text-emerald-400 hover:text-emerald-300 p-1 rounded-full hover:bg-gray-600 flex items-center"
+                                  title="إضافة راوي جديد"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
                             )}
                           </div>
                         ))}
@@ -623,6 +960,127 @@ export default function BatchAddHadithPage() {
               <Plus size={20} />
               إضافة أول حديث
             </button>
+          </div>
+        )}
+
+        {/* إضافة مودال إضافة راوي يدوياً */}
+        {showManualNarratorModal && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-800 rounded-lg shadow-md w-full max-w-md">
+              <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-white">
+                  إضافة راوي جديد
+                </h3>
+                <button
+                  onClick={() => setShowManualNarratorModal(false)} // تعديل هنا: استخدم المتغير الصحيح
+                  className="text-gray-400 hover:text-gray-300"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6">
+                <form onSubmit={handleAddNewNarrator} className="space-y-4">
+                  {/* الاسم الكامل للراوي */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      الاسم الكامل <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newNarratorData.fullName}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, fullName: e.target.value})}
+                      placeholder="اسم الراوي الكامل"
+                      required
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  {/* الكنية */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      الكنية
+                    </label>
+                    <input
+                      type="text"
+                      value={newNarratorData.kunyah}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, kunyah: e.target.value})}
+                      placeholder="كنية الراوي (اختياري)"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* الطبقة */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      الطبقة <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={newNarratorData.generation}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, generation: e.target.value})}
+                      required
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">اختر الطبقة</option>
+                      <option value="صحابي">صحابي</option>
+                      <option value="صحابية">صحابية</option>
+                      <option value="تابعي">تابعي</option>
+                      <option value="تابعية">تابعية</option>
+                      <option value="تابع التابعين">تابع التابعين</option>
+                      <option value="الطبقة الأولى">الطبقة الأولى</option>
+                      <option value="الطبقة الثانية">الطبقة الثانية</option>
+                      <option value="الطبقة الثالثة">الطبقة الثالثة</option>
+                      <option value="الطبقة الرابعة">الطبقة الرابعة</option>
+                      <option value="الطبقة الخامسة">الطبقة الخامسة</option>
+                      <option value="الطبقة السادسة">الطبقة السادسة</option>
+                      <option value="الطبقة السابعة">الطبقة السابعة</option>
+                      <option value="الطبقة الثامنة">الطبقة الثامنة</option>
+                      <option value="الطبقة التاسعة">الطبقة التاسعة</option>
+                      <option value="الطبقة العاشرة">الطبقة العاشرة</option>
+                    </select>
+                  </div>
+
+                  {/* سنة الوفاة */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      سنة الوفاة
+                    </label>
+                    <input
+                      type="number"
+                      value={newNarratorData.deathYear}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, deathYear: e.target.value})}
+                      placeholder="سنة الوفاة بالهجري"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* أزرار التحكم */}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualNarratorModal(false)}
+                      className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isAddingNarrator || !newNarratorData.fullName || !newNarratorData.generation}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isAddingNarrator ? (
+                        <>
+                          <Loader2 size={16} className="inline mr-2 animate-spin" />
+                          جارٍ الإضافة...
+                        </>
+                      ) : (
+                        'إضافة الراوي'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         )}
       </div>

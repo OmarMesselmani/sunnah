@@ -10,10 +10,10 @@ export interface ExtractedNarrator {
   name: string;
   order: number;
   narrationType?: string;
-  possibleVariations?: string[];
-  matchedNarratorId?: string; // Changed from number to string for UUID
+  matchedNarratorId?: string;
   matchedNarratorName?: string;
   isConfirmed?: boolean;
+  generation?: string; // إضافة حقل الطبقة
 }
 
 /**
