@@ -19,6 +19,12 @@ import {
 } from 'lucide-react';
 import { analyzeIsnad, generateSearchQueries, ExtractedNarrator } from '@/lib/gemini-api';
 import { getNarrators, isValidUUID, searchNarratorsByName } from '@/lib/api';
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult
+} from 'react-beautiful-dnd';
 
 interface HadithEntry {
   id: string; // temporary ID for UI
@@ -76,6 +82,53 @@ const getGenerationColor = (generation: string) => {
   }
 };
 
+// دالة محسنة لتوليد استعلامات البحث
+const generateSearchQueriesLocal = (narrator: ExtractedNarrator): string[] => {
+  const name = narrator.name.trim();
+  const queries = new Set<string>();
+  
+  // الاسم الكامل كما هو
+  queries.add(name);
+  
+  // إزالة علامات الترقيم والأحرف الخاصة
+  const cleanName = name.replace(/[،,.:;""()]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (cleanName !== name) {
+    queries.add(cleanName);
+  }
+  
+  // تقسيم الاسم إلى أجزاء
+  const parts = cleanName.split(' ').filter(part => part.length > 1);
+  
+  if (parts.length > 1) {
+    // الاسم الأول والأخير
+    queries.add(`${parts[0]} ${parts[parts.length - 1]}`);
+    
+    // البحث عن "بن" أو "ابن"
+    const ibnIndex = parts.findIndex(part => part === 'بن' || part === 'ابن');
+    if (ibnIndex > 0 && ibnIndex < parts.length - 1) {
+      queries.add(`${parts[ibnIndex - 1]} بن ${parts[ibnIndex + 1]}`);
+      queries.add(`${parts[ibnIndex - 1]} ابن ${parts[ibnIndex + 1]}`);
+    }
+    
+    // أول ثلاث كلمات
+    if (parts.length >= 3) {
+      queries.add(parts.slice(0, 3).join(' '));
+    }
+    
+    // أول كلمتين
+    if (parts.length >= 2) {
+      queries.add(parts.slice(0, 2).join(' '));
+    }
+  }
+  
+  // إزالة الاستعلامات القصيرة جداً
+  const finalQueries = Array.from(queries).filter(q => q.length >= 3);
+  
+  console.log(`🔍 تم توليد ${finalQueries.length} استعلام بحث للراوي "${name}":`, finalQueries);
+  
+  return finalQueries;
+};
+
 export default function BatchAddHadithPage() {
   const [hadiths, setHadiths] = useState<HadithEntry[]>([
     {
@@ -111,10 +164,18 @@ export default function BatchAddHadithPage() {
     fullName: '',
     kunyah: '',
     generation: '',
-    deathYear: ''
+    deathYear: '',
+    translation: '' // إضافة حقل الترجمة (نفس الاسم المستخدم في add-narrator)
   });
   const [currentNarratorIndex, setCurrentNarratorIndex] = useState<number>(-1);
   const [isAddingNarrator, setIsAddingNarrator] = useState(false);
+
+  // إضافة متغيرات للبحث والتعديل الجديدة
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchingNarratorIndex, setSearchingNarratorIndex] = useState<number>(-1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Narrator[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // إضافة حديث جديد
   const addHadith = () => {
@@ -145,6 +206,7 @@ export default function BatchAddHadithPage() {
     updateHadith(hadithId, { analysisError: '' });
 
     try {
+      console.log(`🔍 بدء تحليل السند للحديث ${hadithId}:`, hadith.sanad);
       const narrators = await analyzeIsnad(hadith.sanad);
       
       if (narrators.length === 0) {
@@ -154,18 +216,24 @@ export default function BatchAddHadithPage() {
         return;
       }
 
+      console.log(`📋 تم استخراج ${narrators.length} راوي من السند`);
+      
       // البحث التلقائي عن الرواة
+      console.log('🔍 بدء البحث التلقائي عن الرواة في قاعدة البيانات...');
       const matchedNarrators = await searchNarratorsInDB(narrators);
+      
+      const matchedCount = matchedNarrators.filter(n => n.matchedNarratorId).length;
+      console.log(`✅ تم العثور على ${matchedCount} مطابقة من أصل ${narrators.length} راوي`);
       
       updateHadith(hadithId, {
         extractedNarrators: matchedNarrators,
         isAnalyzed: true
       });
     } catch (error) {
+      console.error('❌ خطأ في تحليل السند:', error);
       updateHadith(hadithId, {
         analysisError: 'خطأ في تحليل السند. تأكد من وجود اتصال بالإنترنت وصلاحية مفتاح API'
       });
-      console.error('Error analyzing isnad:', error);
     }
   };
 
@@ -191,18 +259,20 @@ export default function BatchAddHadithPage() {
   const searchNarratorsInDB = async (narrators: ExtractedNarrator[]): Promise<ExtractedNarrator[]> => {
     return await Promise.all(
       narrators.map(async (narrator) => {
-        const searchQueries = generateSearchQueries(narrator);
+        const searchQueries = generateSearchQueriesLocal(narrator);
         
         for (const query of searchQueries) {
           try {
             const result = await getNarrators({ search: query, limit: 1 });
             if (result.narrators && result.narrators.length > 0) {
               const match = result.narrators[0];
+              console.log(`✓ تم العثور على مطابقة للراوي "${narrator.name}": ${match.fullName}`);
               return {
                 ...narrator,
                 matchedNarratorId: match.id, // Now UUID string
                 matchedNarratorName: match.fullName,
-                isConfirmed: false
+                isConfirmed: true, // تم تغيير هذا من false إلى true
+                generation: match.generation // إضافة معلومات الطبقة
               };
             }
           } catch (error) {
@@ -210,6 +280,7 @@ export default function BatchAddHadithPage() {
           }
         }
         
+        console.log(`⚠️ لم يتم العثور على مطابقة للراوي "${narrator.name}"`);
         return narrator;
       })
     );
@@ -554,7 +625,8 @@ export default function BatchAddHadithPage() {
         fullName: narrator.name,
         kunyah: '',
         generation: '',
-        deathYear: ''
+        deathYear: '',
+        translation: '' // إضافة الترجمة
       });
       setShowAddNarratorModal(true);
     } else {
@@ -573,7 +645,7 @@ export default function BatchAddHadithPage() {
     try {
       setIsAddingNarrator(true);
       
-      // طلب إضافة راوي جديد إلى API
+      // طلب إضافة راوي جديد إلى API (نفس البنية المستخدمة في add-narrator)
       const response = await fetch('http://localhost:5000/api/narrators', {
         method: 'POST',
         headers: {
@@ -581,10 +653,11 @@ export default function BatchAddHadithPage() {
         },
         body: JSON.stringify({
           fullName: newNarratorData.fullName,
-          kunyah: newNarratorData.kunyah || undefined,
+          kunyas: newNarratorData.kunyah || undefined, // تغيير kunyah إلى kunyas
           generation: newNarratorData.generation,
+          translation: newNarratorData.translation || undefined, // إضافة الترجمة
           deathYears: newNarratorData.deathYear ? 
-            [{ year: parseInt(newNarratorData.deathYear), isPrimary: true }] : 
+            [newNarratorData.deathYear] : // إرسال كمصفوفة نصوص مثل add-narrator
             undefined
         }),
       });
@@ -605,7 +678,7 @@ export default function BatchAddHadithPage() {
       
       // إغلاق النافذة المنبثقة وإعادة تعيين البيانات
       setShowAddNarratorModal(false);
-      setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '' });
+      setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' });
       setCurrentNarratorIndex(-1);
       
     } catch (error) {
@@ -637,6 +710,83 @@ export default function BatchAddHadithPage() {
     setNarratorSearch(narrator.name); // ملء حقل البحث باسم الراوي الحالي
     setSelectedNarrator(null);
     setShowManualNarratorModal(true); // فتح النافذة المنبثقة للبحث
+  };
+
+  // الدوال الجديدة للبحث والتعديل
+  const handleEditNarrator = (hadithId: string, narratorIndex: number) => {
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+    
+    const narrator = hadith.extractedNarrators[narratorIndex];
+    
+    setCurrentHadithId(hadithId);
+    setSearchingNarratorIndex(narratorIndex);
+    setSearchQuery(narrator.name);
+    setSearchResults([]);
+    setShowSearchModal(true);
+  };
+
+  // دالة البحث في قاعدة البيانات
+  useEffect(() => {
+    const performSearch = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const result = await searchNarratorsByName(searchQuery);
+        setSearchResults(result.narrators || []);
+      } catch (error) {
+        console.error('Error searching narrators:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const handler = setTimeout(performSearch, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // دالة اختيار راوي من نتائج البحث
+  const selectSearchResult = (narrator: Narrator) => {
+    if (!currentHadithId || searchingNarratorIndex === -1) return;
+
+    // تحديث الراوي في الحديث
+    updateNarratorInHadith(currentHadithId, searchingNarratorIndex, {
+      matchedNarratorId: narrator.id,
+      matchedNarratorName: narrator.fullName,
+      isConfirmed: true,
+      generation: narrator.generation
+    });
+
+    // إغلاق المودال وإعادة تعيين البيانات
+    setShowSearchModal(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setCurrentHadithId(null);
+    setSearchingNarratorIndex(-1);
+  };
+
+  // دالة سحب وإفلات الراوي
+  const onNarratorDragEnd = (result: DropResult, hadithId: string) => {
+    if (!result.destination) return;
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+
+    const narrators = Array.from(hadith.extractedNarrators);
+    const [removed] = narrators.splice(result.source.index, 1);
+    narrators.splice(result.destination.index, 0, removed);
+
+    // إعادة ترقيم الرواة
+    const reordered = narrators.map((n, idx) => ({
+      ...n,
+      order: idx + 1
+    }));
+
+    updateHadith(hadithId, { extractedNarrators: reordered });
   };
 
   return (
@@ -892,16 +1042,30 @@ export default function BatchAddHadithPage() {
                             
                             {narrator.matchedNarratorId ? (
                               <div className="flex items-center gap-2">
-                                <span className="text-emerald-400 text-sm">
-                                  ✓ {narrator.matchedNarratorName}
+                                <span className={`text-sm flex items-center gap-1 ${narrator.isConfirmed ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                                  {narrator.isConfirmed ? '✓' : '?'} {narrator.matchedNarratorName}
+                                  {narrator.generation && (
+                                    <span className={`text-xs px-1 py-0.5 rounded ${getGenerationColor(narrator.generation)}`}>
+                                      {narrator.generation}
+                                    </span>
+                                  )}
                                 </span>
                                 <button
-                                  onClick={() => resetNarratorMatch(hadith.id, nIndex)}
+                                  onClick={() => handleEditNarrator(hadith.id, nIndex)}
                                   className="text-gray-400 hover:text-yellow-400 p-1 rounded-full hover:bg-gray-600"
                                   title="تغيير الراوي"
                                 >
                                   <Edit size={14} />
                                 </button>
+                                {!narrator.isConfirmed && (
+                                  <button
+                                    onClick={() => updateNarratorInHadith(hadith.id, nIndex, { isConfirmed: true })}
+                                    className="text-yellow-400 hover:text-green-400 p-1 rounded-full hover:bg-gray-600 text-xs"
+                                    title="تأكيد المطابقة"
+                                  >
+                                    ✓
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <div className="flex items-center gap-1">
@@ -963,8 +1127,185 @@ export default function BatchAddHadithPage() {
           </div>
         )}
 
+        {/* مودال البحث الجديد للتعديل */}
+        {showSearchModal && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-800 rounded-lg shadow-md w-full max-w-lg max-h-[80vh] overflow-y-auto">
+              <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-white">
+                  البحث عن راوي
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowSearchModal(false);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setCurrentHadithId(null);
+                    setSearchingNarratorIndex(-1);
+                  }}
+                  className="text-gray-400 hover:text-gray-300"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {/* حقل البحث */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    ابحث عن راوي
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="اكتب اسم الراوي..."
+                      className="w-full px-4 py-2 pr-10 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <Search className="absolute right-3 top-2.5 text-gray-400" size={20} />
+                  </div>
+                </div>
+
+                {/* نتائج البحث */}
+                <div className="space-y-2">
+                  {isSearching ? (
+                    <div className="text-center py-4">
+                      <Loader2 className="animate-spin mx-auto mb-2" size={24} />
+                      <p className="text-gray-400">جارٍ البحث...</p>
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <>
+                      <h4 className="text-sm font-medium text-gray-300 mb-2">
+                        نتائج البحث ({searchResults.length}):
+                      </h4>
+                      <div className="max-h-60 overflow-y-auto">
+                        {searchResults.map((narrator) => (
+                          <button
+                            key={narrator.id}
+                            onClick={() => selectSearchResult(narrator)}
+                            className="w-full text-right p-3 bg-gray-700 hover:bg-gray-600 rounded-lg border border-gray-600 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-medium text-white">{narrator.fullName}</div>
+                                {narrator.kunyah && (
+                                  <div className="text-sm text-gray-400">{narrator.kunyah}</div>
+                                )}
+                              </div>
+                              <span className={`text-xs px-2 py-1 rounded-full ${getGenerationColor(narrator.generation)}`}>
+                                {narrator.generation}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : searchQuery.length >= 2 ? (
+                    <div className="text-center py-4">
+                      <p className="text-gray-400">لم يتم العثور على نتائج</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-gray-400">اكتب اسم الراوي للبحث</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* إضافة مودال إضافة راوي يدوياً */}
         {showManualNarratorModal && (
+          <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-800 rounded-lg shadow-md w-full max-w-md">
+              <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-white">
+                  إضافة راوي يدوياً
+                </h3>
+                <button
+                  onClick={() => setShowManualNarratorModal(false)}
+                  className="text-gray-400 hover:text-gray-300"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6">
+                <form onSubmit={handleAddNarrator} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      البحث عن راوي
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={narratorSearch}
+                        onChange={(e) => setNarratorSearch(e.target.value)}
+                        placeholder="ابحث عن راوي..."
+                        className="w-full px-4 py-2 pr-10 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                      <Search className="absolute right-3 top-2.5 text-gray-400" size={20} />
+                    </div>
+                    
+                    {/* نتائج البحث */}
+                    {narratorSearchResults.length > 0 && (
+                      <div className="mt-2 max-h-32 overflow-y-auto border border-gray-600 rounded-lg">
+                        {narratorSearchResults.map((narrator) => (
+                          <button
+                            key={narrator.id}
+                            type="button"
+                            onClick={() => selectNarrator(narrator)}
+                            className="w-full text-right p-2 hover:bg-gray-700 border-b border-gray-600 last:border-b-0"
+                          >
+                            <div className="font-medium text-white">{narrator.fullName}</div>
+                            {narrator.kunyah && (
+                              <div className="text-sm text-gray-400">{narrator.kunyah}</div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      ترتيب الراوي في السند
+                    </label>
+                    <input
+                      type="number"
+                      value={narratorOrder}
+                      onChange={(e) => setNarratorOrder(Number(e.target.value))}
+                      min="1"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualNarratorModal(false)}
+                      className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!selectedNarrator}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      إضافة الراوي
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* مودال إضافة راوي جديد */}
+        {showAddNarratorModal && (
           <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
             <div className="bg-gray-800 rounded-lg shadow-md w-full max-w-md">
               <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
@@ -972,7 +1313,7 @@ export default function BatchAddHadithPage() {
                   إضافة راوي جديد
                 </h3>
                 <button
-                  onClick={() => setShowManualNarratorModal(false)} // تعديل هنا: استخدم المتغير الصحيح
+                  onClick={() => setShowAddNarratorModal(false)}
                   className="text-gray-400 hover:text-gray-300"
                 >
                   <X size={20} />
@@ -1054,11 +1395,26 @@ export default function BatchAddHadithPage() {
                     />
                   </div>
 
+                  {/* الترجمة */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      الترجمة
+                    </label>
+                    <textarea
+                      value={newNarratorData.translation}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, translation: e.target.value})}
+                      placeholder="أدخل ترجمة مختصرة للراوي..."
+                      rows={3}
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                      dir="rtl"
+                    />
+                  </div>
+
                   {/* أزرار التحكم */}
                   <div className="flex justify-end gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowManualNarratorModal(false)}
+                      onClick={() => setShowAddNarratorModal(false)}
                       className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
                     >
                       إلغاء
