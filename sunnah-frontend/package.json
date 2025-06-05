@@ -11,6 +11,7 @@
   "dependencies": {
     "-": "^0.0.1",
     "@google/generative-ai": "^0.24.1",
+    "@hello-pangea/dnd": "^18.0.1",
     "axios": "^1.6.7",
     "lucide-react": "^0.363.0",
     "next": "14.2.3",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
+    "@types/react-beautiful-dnd": "^13.1.8",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.4",
