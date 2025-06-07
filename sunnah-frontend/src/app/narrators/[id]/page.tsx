@@ -16,21 +16,26 @@ import {
   ExternalLink,
   Clock
 } from 'lucide-react';
-import { getNarratorById, getNarratorHadiths, getNarratorRelations, getDisplayDeathYears, getPrimaryDeathYear, isValidUUID } from '@/lib/api';
+// تأكد من أن دوال API ترجع البيانات بالبنية الجديدة
+import { getNarratorById, getNarratorHadiths, getNarratorRelations, isValidUUID } from '@/lib/api';
+
+// تعريف الواجهة الجديدة هنا
+interface NarratorDeathYear {
+  id: string; // أو number إذا كان ID من قاعدة البيانات رقمًا
+  year?: number | null;
+  deathDescription?: string | null;
+  isPrimary: boolean;
+  source?: string;
+}
 
 interface Narrator {
-  id: string; // Changed from number to string for UUID
+  id: string;
   fullName: string;
   kunyah?: string;
   laqab?: string;
   generation: string;
-  deathYear?: number;
-  deathYears?: Array<{
-    id: number;
-    year: number;
-    isPrimary: boolean;
-    source?: string;
-  }>;
+  deathYear?: string | number | null; // للتوافق مع النظام القديم
+  deathYears?: NarratorDeathYear[];   // استخدام الواجهة المحدثة
   biography?: string;
   _count?: {
     narratedHadiths: number;
@@ -92,9 +97,14 @@ export default function NarratorDetailPage() {
     if (narratorId && activeTab === 'hadiths' && isValidUUID(narratorId)) {
       loadHadiths();
     }
-  }, [hadithsPage]);
+  }, [hadithsPage, narratorId, activeTab]); // Added narratorId and activeTab to dependencies
 
   const loadNarratorData = async () => {
+    if (!narratorId || !isValidUUID(narratorId)) { // Added check for narratorId
+        setError('معرف الراوي غير صالح');
+        setLoading(false);
+        return;
+    }
     try {
       setLoading(true);
       setError('');
@@ -109,7 +119,7 @@ export default function NarratorDetailPage() {
       setStudents(relationsData.students || []);
       
       // Load first page of hadiths
-      await loadHadiths();
+      await loadHadiths(); // Call loadHadiths after narratorData is set
       
     } catch (error: any) {
       console.error('Error loading narrator:', error);
@@ -124,7 +134,9 @@ export default function NarratorDetailPage() {
   };
 
   const loadHadiths = async () => {
+    if (!narratorId || !isValidUUID(narratorId)) return; // Added check for narratorId
     try {
+      // setError(''); // Optionally reset error specific to hadiths loading
       const hadithsData = await getNarratorHadiths(narratorId, {
         page: hadithsPage,
         limit: 5
@@ -133,6 +145,7 @@ export default function NarratorDetailPage() {
       setTotalHadithsPages(hadithsData.pagination?.pages || 1);
     } catch (error) {
       console.error('Error loading hadiths:', error);
+      // setError('حدث خطأ في تحميل الأحاديث'); // Optionally set error specific to hadiths
     }
   };
 
@@ -149,51 +162,75 @@ export default function NarratorDetailPage() {
     }
   };
 
-  // تعديل دالة renderDeathYears لعرض سنوات الوفاة بدون ترجيح
+  // تعديل دالة renderDeathYears لعرض سنوات الوفاة (رقمية أو نصية)
   const renderDeathYears = (narrator: Narrator) => {
-    if (!narrator.deathYears || narrator.deathYears.length === 0) {
-      // التوافق مع النظام القديم
-      if (narrator.deathYear) {
+    // أولاً، تحقق من deathYears الجديدة
+    if (narrator.deathYears && narrator.deathYears.length > 0) {
+      const primaryDeathInfo = narrator.deathYears.find(dy => dy.isPrimary);
+      const otherDeathInfo = narrator.deathYears.filter(dy => !dy.isPrimary);
+
+      const displayValue = (dy: NarratorDeathYear) => {
+        if (dy.year) return `${dy.year} هـ`;
+        if (dy.deathDescription) return dy.deathDescription;
+        return 'غير محدد';
+      };
+
+      if (narrator.deathYears.length === 1) {
+        const singleEntry = narrator.deathYears[0];
         return (
           <div className="flex items-center gap-2 text-gray-300">
             <Calendar size={18} />
-            <span className="font-semibold">سنة الوفاة:</span> 
-            <span>{narrator.deathYear} هـ</span>
+            <span className="font-semibold">الوفاة:</span> 
+            <span>{displayValue(singleEntry)}</span>
+            {singleEntry.source && (
+              <span className="text-gray-500 text-xs">({singleEntry.source})</span>
+            )}
           </div>
         );
       }
-      return null;
-    }
 
-    if (narrator.deathYears.length === 1) {
+      return (
+        <div className="text-gray-300">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock size={18} />
+            <span className="font-semibold">سنوات/أحوال الوفاة المحتملة:</span>
+          </div>
+          <div className="mr-6 space-y-1">
+            {primaryDeathInfo && (
+              <div key={primaryDeathInfo.id} className="flex items-center gap-2 text-sm font-medium">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 ring-1 ring-blue-300"></span>
+                <span>{displayValue(primaryDeathInfo)} (الأساسي)</span>
+                {primaryDeathInfo.source && (
+                  <span className="text-gray-500 text-xs">({primaryDeathInfo.source})</span>
+                )}
+              </div>
+            )}
+            {otherDeathInfo.map((deathYear) => (
+              <div key={deathYear.id} className="flex items-center gap-2 text-sm">
+                <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                <span>{displayValue(deathYear)}</span>
+                {deathYear.source && (
+                  <span className="text-gray-500 text-xs">({deathYear.source})</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    // التوافق مع النظام القديم إذا كان deathYear موجودًا (قد يكون رقمًا أو نصًا)
+    if (narrator.deathYear) {
       return (
         <div className="flex items-center gap-2 text-gray-300">
           <Calendar size={18} />
-          <span className="font-semibold">سنة الوفاة:</span> 
-          <span>{narrator.deathYears[0].year} هـ</span>
+          <span className="font-semibold">الوفاة:</span> 
+          <span>{typeof narrator.deathYear === 'number' ? `${narrator.deathYear} هـ` : narrator.deathYear}</span>
         </div>
       );
     }
 
-    return (
-      <div className="text-gray-300">
-        <div className="flex items-center gap-2 mb-2">
-          <Clock size={18} />
-          <span className="font-semibold">سنوات الوفاة المحتملة:</span>
-        </div>
-        <div className="mr-6 space-y-1">
-          {narrator.deathYears.map((deathYear, index) => (
-            <div key={deathYear.id} className="flex items-center gap-2 text-sm">
-              <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
-              <span>{deathYear.year} هـ</span>
-              {deathYear.source && (
-                <span className="text-gray-500 text-xs">({deathYear.source})</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return null; // لا توجد معلومات وفاة لعرضها
   };
 
   if (loading) {

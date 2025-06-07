@@ -6,19 +6,20 @@ import { getNarrators, getDisplayDeathYears, getPrimaryDeathYear } from '@/lib/a
 import Link from 'next/link';
 
 interface NarratorDeathYear {
-  id: number;
-  year: number;
+  id: string; // تم التعديل ليتوافق مع UUID
+  year?: number | null; // يمكن أن يكون رقمًا أو null
+  deathDescription?: string | null; // إضافة وصف الوفاة
   isPrimary: boolean;
   source?: string;
 }
 
 interface Narrator {
-  id: string; // Changed from number to string for UUID
+  id: string; 
   fullName: string;
   kunyah?: string;
   laqab?: string;
   generation: string;
-  deathYear?: number;
+  deathYear?: string | number | null; //  تعديل هنا ليتوافق مع lib/api.ts
   deathYears?: NarratorDeathYear[];
   _count?: {
     narratedHadiths: number;
@@ -46,7 +47,8 @@ export default function NarratorsPage() {
       if (search) params.search = search;
       
       const data = await getNarrators(params);
-      setNarrators(data.narrators || []);
+      // الآن يجب أن يكون نوع data.narrators متوافقًا
+      setNarrators(data.narrators || []); 
       setTotalPages(data.pagination?.pages || 1);
     } catch (error) {
       console.error('Error loading narrators:', error);

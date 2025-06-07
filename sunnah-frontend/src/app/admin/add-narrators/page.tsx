@@ -10,11 +10,18 @@ import axios from 'axios';
 interface NarratorFormData {
   fullName: string;
   kunyas: string;
-  deathYears: string[];
+  deathYears: DeathYearEntry[]; // تم التعديل هنا
   generation: string;
   translation: string;
   teachers: string[];
   students: string[];
+}
+
+interface DeathYearEntry {
+  id: string; // لتتبع الإدخالات في الواجهة
+  year: string; // سيظل نصًا في الواجهة للتحكم المرن
+  description: string;
+  isPrimary: boolean;
 }
 
 export default function AddNarratorsPage() {
@@ -24,7 +31,7 @@ export default function AddNarratorsPage() {
   const [formData, setFormData] = useState<NarratorFormData>({
     fullName: '',
     kunyas: '',
-    deathYears: [''],
+    deathYears: [{ id: Date.now().toString(), year: '', description: '', isPrimary: true }] as DeathYearEntry[],
     generation: '',
     translation: '',
     teachers: [],
@@ -42,18 +49,18 @@ export default function AddNarratorsPage() {
   // قائمة الطبقات
   const generations = [
     { value: '', label: 'اختر الطبقة' },
-    { value: 'الطبقة الأولى', label: 'الطبقة الأولى - كبار الصحابة' },
-    { value: 'الطبقة الثانية', label: 'الطبقة الثانية - صغار الصحابة' },
-    { value: 'الطبقة الثالثة', label: 'الطبقة الثالثة - كبار التابعين' },
-    { value: 'الطبقة الرابعة', label: 'الطبقة الرابعة - الوسطى من التابعين' },
-    { value: 'الطبقة الخامسة', label: 'الطبقة الخامسة - صغار التابعين' },
-    { value: 'الطبقة السادسة', label: 'الطبقة السادسة - من عاصر صغار التابعين' },
-    { value: 'الطبقة السابعة', label: 'الطبقة السابعة - كبار أتباع التابعين' },
-    { value: 'الطبقة الثامنة', label: 'الطبقة الثامنة - الوسطى من أتباع التابعين' },
-    { value: 'الطبقة التاسعة', label: 'الطبقة التاسعة - صغار أتباع التابعين' },
-    { value: 'الطبقة العاشرة', label: 'الطبقة العاشرة - كبار الآخذين عن تبع الأتباع' },
-    { value: 'الطبقة الحادية عشرة', label: 'الطبقة الحادية عشرة - الوسطى من الآخذين عن تبع الأتباع' },
-    { value: 'الطبقة الثانية عشرة', label: 'الطبقة الثانية عشرة - صغار الآخذين عن تبع الأتباع' },
+    { value: 'الطبقة الأولى', label: 'الأولى' },
+    { value: 'الطبقة الثانية', label: 'الثانية' },
+    { value: 'الطبقة الثالثة', label: 'الثالثة' },
+    { value: 'الطبقة الرابعة', label: 'الرابعة' },
+    { value: 'الطبقة الخامسة', label: 'الخامسة' },
+    { value: 'الطبقة السادسة', label: 'السادسة' },
+    { value: 'الطبقة السابعة', label: 'السابعة' },
+    { value: 'الطبقة الثامنة', label: 'الثامنة' },
+    { value: 'الطبقة التاسعة', label: 'التاسعة' },
+    { value: 'الطبقة العاشرة', label: 'العاشرة' },
+    { value: 'الطبقة الحادية عشرة', label: 'الحادية عشرة' },
+    { value: 'الطبقة الثانية عشرة', label: 'الثانية عشرة' },
   ];
 
   // إعادة تعيين رسائل النجاح والخطأ
@@ -64,19 +71,21 @@ export default function AddNarratorsPage() {
 
   // التعامل مع تغيير قيم النموذج
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+    index?: number,
+    field?: keyof DeathYearEntry
   ) => {
-    const { name, value } = e.target;
-    resetMessages();
-    
-    if (name.startsWith('deathYear[')) {
-      const indexMatch = name.match(/\[(\d+)\]/);
-      if (indexMatch) {
-        const index = parseInt(indexMatch[1], 10);
-        const updatedDeathYears = [...formData.deathYears];
-        updatedDeathYears[index] = value;
-        setFormData(prev => ({ ...prev, deathYears: updatedDeathYears }));
-      }
+    const { name, value, type } = e.target;
+
+    if (name.startsWith('deathYear[')) { // مثال قديم، سنغيره
+      // ...
+    } else if (field && index !== undefined && (field === 'year' || field === 'description')) {
+      setFormData(prev => ({
+        ...prev,
+        deathYears: prev.deathYears.map((dy, i) => 
+          i === index ? { ...dy, [field]: value } : dy
+        )
+      }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -86,17 +95,23 @@ export default function AddNarratorsPage() {
   const addDeathYear = () => {
     setFormData(prev => ({
       ...prev,
-      deathYears: [...prev.deathYears, '']
+      deathYears: [
+        ...prev.deathYears, 
+        { 
+          id: Date.now().toString(), 
+          year: '', 
+          description: '', 
+          isPrimary: prev.deathYears.length === 0 // أول واحد يُضاف يكون primary إذا لم يكن هناك شيء
+        }
+      ]
     }));
   };
 
   // حذف سنة وفاة محتملة
-  const removeDeathYear = (index: number) => {
-    if (formData.deathYears.length <= 1) return;
-    
+  const removeDeathYear = (indexToRemove: number) => {
     setFormData(prev => ({
       ...prev,
-      deathYears: prev.deathYears.filter((_, i) => i !== index)
+      deathYears: prev.deathYears.filter((_, index) => index !== indexToRemove)
     }));
   };
 
@@ -157,7 +172,6 @@ export default function AddNarratorsPage() {
     e.preventDefault();
     resetMessages();
     
-    // التحقق من البيانات المطلوبة
     if (!formData.fullName.trim() || !formData.generation) {
       setSubmitError('يرجى ملء جميع الحقول المطلوبة (الاسم الكامل والطبقة)');
       return;
@@ -166,11 +180,15 @@ export default function AddNarratorsPage() {
     setIsSubmitting(true);
     
     try {
-      // تجهيز البيانات للإرسال
       const narratorData = {
         fullName: formData.fullName.trim(),
         kunyas: formData.kunyas.trim() || null,
-        deathYears: formData.deathYears.filter(year => year.trim() !== ''),
+        // تعديل هنا لتجهيز deathYears بشكل صحيح
+        deathYears: formData.deathYears.map(dy => ({
+          year: dy.year.trim(), // أرسل كنص، الخادم سيتعامل معه
+          description: dy.description.trim(),
+          isPrimary: dy.isPrimary 
+        })).filter(dy => dy.year || dy.description), // إزالة الإدخالات الفارغة تمامًا
         generation: formData.generation,
         translation: formData.translation.trim() || null,
         teachers: formData.teachers,
@@ -199,7 +217,7 @@ export default function AddNarratorsPage() {
         setFormData({
           fullName: '',
           kunyas: '',
-          deathYears: [''],
+          deathYears: [{ id: Date.now().toString(), year: '', description: '', isPrimary: true }] as DeathYearEntry[],
           generation: '',
           translation: '',
           teachers: [],
@@ -343,29 +361,43 @@ export default function AddNarratorsPage() {
                       سنة الوفاة (الاحتمالات)
                     </label>
                     <div className="space-y-2">
-                      {formData.deathYears.map((year, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <div className="relative flex-grow">
-                            <input
-                              type="number"
-                              name={`deathYear[${index}]`}
-                              value={year}
-                              onChange={handleChange}
-                              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 pl-10"
-                              placeholder={`سنة الوفاة ${index > 0 ? 'المحتملة ' + (index + 1) : 'بالهجري'}`}
-                            />
-                            <Calendar className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                      {formData.deathYears.map((entry, index) => (
+                        <div key={entry.id} className="p-3 border border-gray-700 rounded-lg space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-grow">
+                              <label htmlFor={`deathYear-year-${index}`} className="text-xs text-gray-400 mb-1 block">السنة (رقم)</label>
+                              <input
+                                type="number" // أو text إذا كنت تريد مرونة أكبر في الإدخال ثم التحقق
+                                id={`deathYear-year-${index}`}
+                                value={entry.year}
+                                onChange={(e) => handleChange(e, index, 'year')}
+                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                                placeholder="مثال: 125"
+                              />
+                            </div>
+                            <div className="flex-grow">
+                              <label htmlFor={`deathYear-desc-${index}`} className="text-xs text-gray-400 mb-1 block">أو وصف نصي</label>
+                              <input
+                                type="text"
+                                id={`deathYear-desc-${index}`}
+                                value={entry.description}
+                                onChange={(e) => handleChange(e, index, 'description')}
+                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                                placeholder="مثال: توفي في خلافة عمر"
+                                dir="rtl"
+                              />
+                            </div>
+                            {formData.deathYears.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeDeathYear(index)}
+                                className="p-2 text-red-400 hover:text-red-300 self-end"
+                              >
+                                <X size={18} />
+                              </button>
+                            )}
                           </div>
-                          
-                          {formData.deathYears.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeDeathYear(index)}
-                              className="p-2 text-red-400 hover:text-red-300 bg-gray-800 rounded-lg"
-                            >
-                              <X size={18} />
-                            </button>
-                          )}
+                           {/* يمكنك إضافة خيار لجعلها isPrimary إذا أردت */}
                         </div>
                       ))}
                       
@@ -375,7 +407,7 @@ export default function AddNarratorsPage() {
                         className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 px-2 py-1"
                       >
                         <Plus size={16} />
-                        إضافة احتمال آخر
+                        إضافة احتمال وفاة آخر
                       </button>
                     </div>
                   </div>

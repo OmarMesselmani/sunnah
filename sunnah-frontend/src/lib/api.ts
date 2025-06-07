@@ -11,20 +11,21 @@ const api = axios.create({
 
 // Types
 export interface NarratorDeathYear {
-  id: number;
-  year: number;
+  id: string; // يجب أن يكون string ليتوافق مع UUIDs
+  year?: number | null;
+  deathDescription?: string | null;
   isPrimary: boolean;
   source?: string;
 }
 
 export interface Narrator {
-  id: string; // Changed from number to string for UUID
+  id: string;
   fullName: string;
   kunyah?: string;
   laqab?: string;
   generation: string;
-  deathYear?: number; // للتوافق مع النظام القديم
-  deathYears?: NarratorDeathYear[]; // سنوات الوفاة المتعددة
+  deathYear?: string | number | null;
+  deathYears?: NarratorDeathYear[];
   biography?: string;
   _count?: {
     narratedHadiths: number;
@@ -296,29 +297,62 @@ export const checkHealth = async () => {
 // Helper functions لسنوات الوفاة
 export const getDisplayDeathYears = (narrator: Narrator): string => {
   if (narrator.deathYears && narrator.deathYears.length > 0) {
-    const years = narrator.deathYears.map(dy => dy.year);
-    if (years.length === 1) {
-      return `${years[0]} هـ`;
+    const displayEntries = narrator.deathYears.map(dy => {
+      if (dy.year) return `${dy.year} هـ`;
+      if (dy.deathDescription) return dy.deathDescription;
+      return null; // أو 'غير محدد' إذا أردت
+    }).filter(Boolean); // إزالة القيم الفارغة
+
+    if (displayEntries.length === 0) {
+      // لا يوجد شيء لعرضه من deathYears
+    } else if (displayEntries.length === 1) {
+      return displayEntries[0] as string;
     } else {
-      return `${years.join('، ')} هـ (محتمل)`;
+      return `${displayEntries.join('، ')} (محتمل)`;
     }
   }
   
   // التوافق مع النظام القديم
   if (narrator.deathYear) {
-    return `${narrator.deathYear} هـ`;
+    // إذا كان deathYear رقمًا، أضف "هـ"
+    if (typeof narrator.deathYear === 'number') {
+      return `${narrator.deathYear} هـ`;
+    }
+    // إذا كان نصًا، اعرضه كما هو
+    return narrator.deathYear.toString(); 
   }
   
-  return '';
+  return 'غير محدد'; // قيمة افتراضية إذا لم يوجد شيء
 };
 
 export const getPrimaryDeathYear = (narrator: Narrator): number | null => {
   if (narrator.deathYears && narrator.deathYears.length > 0) {
     const primary = narrator.deathYears.find(dy => dy.isPrimary);
-    return primary ? primary.year : narrator.deathYears[0].year;
+    if (primary && typeof primary.year === 'number') {
+      return primary.year;
+    }
+    // إذا لم يكن هناك primary أو primary.year ليس رقمًا، حاول أول إدخال صالح
+    const firstValidYearEntry = narrator.deathYears.find(dy => typeof dy.year === 'number');
+    if (firstValidYearEntry && typeof firstValidYearEntry.year === 'number') {
+      return firstValidYearEntry.year;
+    }
   }
   
-  return narrator.deathYear || null;
+  // التوافق مع النظام القديم
+  if (narrator.deathYear) {
+    if (typeof narrator.deathYear === 'number') {
+      return narrator.deathYear;
+    }
+    // إذا كان نصًا، حاول تحويله إلى رقم. إذا فشل، أرجع null.
+    if (typeof narrator.deathYear === 'string') {
+      const parsedYear = parseInt(narrator.deathYear, 10);
+      if (!isNaN(parsedYear)) {
+        return parsedYear;
+      }
+    }
+  }
+  
+  return null; // إذا لم يتم العثور على سنة وفاة رقمية صالحة
 };
 
 export const getNarratorMusnad = async (
