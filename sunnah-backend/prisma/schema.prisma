@@ -18,7 +18,7 @@ model Narrator {
   kunyah           String?  @db.VarChar(255)
   laqab            String?  @db.VarChar(255)
   alternativeNames String?  @db.Text
-  deathYear        Int?     // سنة الوفاة الرئيسية (للتوافق مع النظام الحالي)
+  deathYear        String?  // للتوافق مع النظام القديم، يمكن أن يكون نصاً الآن
   generation       String   @db.VarChar(50)
   biography        String?  @db.Text
   createdAt        DateTime @default(now())
@@ -37,19 +37,17 @@ model Narrator {
 
 // نموذج جديد لسنوات الوفاة المتعددة
 model NarratorDeathYear {
-  id         Int      @id @default(autoincrement())
-  narratorId String   @db.VarChar(36)
-  year       Int
-  isPrimary  Boolean  @default(false) // هل هذه السنة الأساسية
-  source     String?  @db.VarChar(255) // مصدر هذا التاريخ (اختياري)
-  createdAt  DateTime @default(now())
+  id                String    @id @default(uuid())
+  narrator          Narrator  @relation(fields: [narratorId], references: [id], onDelete: Cascade)
+  narratorId        String
+  year              Int?
+  deathDescription  String?
+  isPrimary         Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt // تم إضافة @default(now())
 
-  // العلاقات
-  narrator Narrator @relation(fields: [narratorId], references: [id], onDelete: Cascade)
-
-  @@unique([narratorId, year]) // لمنع التكرار
+  @@unique([narratorId, year, deathDescription]) // لضمان عدم تكرار نفس الإدخال
   @@index([narratorId])
-  @@index([year])
 }
 
 // نموذج المصادر

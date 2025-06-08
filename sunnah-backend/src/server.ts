@@ -146,11 +146,11 @@ app.post('/api/narrators', async (req, res) => {
     const { 
       fullName, 
       kunyas, 
+      // deathYears سيأتي الآن كمصفوفة من الكائنات، كل كائن قد يحتوي على year أو description
       deathYears = [], 
       generation, 
-      translation, 
-      teachers = [], 
-      students = [] 
+      translation,
+      // ...
     } = req.body;
 
     // التحقق من البيانات المطلوبة
@@ -163,24 +163,48 @@ app.post('/api/narrators', async (req, res) => {
     }
 
     // معالجة سنوات الوفاة
-    const validDeathYears = deathYears
-      .filter((year: any) => year && String(year).trim())
-      .map((year: any, index: number) => {
-        const yearNum = parseInt(String(year).trim(), 10);
-        if (isNaN(yearNum) || yearNum <= 0 || yearNum >= 2000) {
-          return null;
+    interface ProcessedDeathYearInput {
+      year?: string | number; // قد يكون رقمًا أو نصًا من الواجهة الأمامية
+      description?: string;
+      isPrimary?: boolean;
+    }
+
+    const processedDeathYears = deathYears
+      .map((input: ProcessedDeathYearInput, index: number) => {
+        const yearStr = input.year ? String(input.year).trim() : null;
+        const descriptionStr = input.description ? String(input.description).trim() : null;
+        
+        let numericYear: number | null = null;
+        if (yearStr && /^\d+$/.test(yearStr)) { // تحقق إذا كان نص السنة هو رقم صحيح
+          numericYear = parseInt(yearStr, 10);
+          if (isNaN(numericYear) || numericYear <= 0 || numericYear >= 2000) { // نطاق مثال
+            numericYear = null; // تجاهل إذا لم يكن رقمًا صالحًا
+          }
         }
-        return {
-          year: yearNum,
-          isPrimary: index === 0 // السنة الأولى تكون الأساسية
-        };
+
+        // إذا كان هناك سنة رقمية صالحة، تجاهل الوصف النصي لنفس الإدخال
+        // أو يمكنك السماح بكليهما إذا كان هذا هو المطلوب
+        if (numericYear !== null) {
+          return {
+            year: numericYear,
+            deathDescription: null, // أو input.description إذا أردت حفظ كليهما
+            isPrimary: input.isPrimary !== undefined ? input.isPrimary : index === 0,
+          };
+        } else if (descriptionStr && descriptionStr.length > 0) {
+          return {
+            year: null,
+            deathDescription: descriptionStr,
+            isPrimary: input.isPrimary !== undefined ? input.isPrimary : index === 0,
+          };
+        }
+        return null; // تجاهل الإدخال إذا كان كلاهما فارغًا أو غير صالح
       })
-      .filter(Boolean);
+      .filter(Boolean); // إزالة الإدخالات الفارغة
 
     console.log('🔄 معالجة البيانات:', {
       fullName: fullName.trim(),
       kunyah: kunyas?.trim() || null,
-      deathYears: validDeathYears,
+      deathYears: processedDeathYears,
       generation: generation.trim()
     });
 
@@ -202,12 +226,6 @@ app.post('/api/narrators', async (req, res) => {
       });
     }
 
-    // تعريف واجهة لسنوات الوفاة
-    interface ValidDeathYear {
-      year: number;
-      isPrimary: boolean;
-    }
-
     // استخدام Transaction لضمان سلامة البيانات
     const result = await prisma.$transaction(async (tx: any) => {
       // إنشاء الراوي - سيتم توليد UUID تلقائياً
@@ -215,19 +233,22 @@ app.post('/api/narrators', async (req, res) => {
         data: {
           fullName: fullName.trim(),
           kunyah: kunyas?.trim() || null,
-          deathYear: validDeathYears.length > 0 ? (validDeathYears[0] as ValidDeathYear).year : null, // للتوافق مع النظام القديم
+          // تحديد deathYear الرئيسي بناءً على أول إدخال صالح
+          deathYear: processedDeathYears.length > 0 
+            ? (processedDeathYears[0]?.year?.toString() || processedDeathYears[0]?.deathDescription || null) 
+            : null,
           generation: generation.trim(),
           biography: translation?.trim() || null,
-          alternativeNames: [...teachers, ...students].filter(Boolean).join(', ') || null
+          // ...
         }
       });
 
-      // إضافة سنوات الوفاة إذا وجدت
-      if (validDeathYears.length > 0) {
+      if (processedDeathYears.length > 0) {
         await tx.narratorDeathYear.createMany({
-          data: (validDeathYears as ValidDeathYear[]).map((dy: ValidDeathYear) => ({
-            narratorId: narrator.id, // UUID string
+          data: (processedDeathYears as Array<{year: number | null, deathDescription: string | null, isPrimary: boolean}>).map(dy => ({
+            narratorId: narrator.id,
             year: dy.year,
+            deathDescription: dy.deathDescription,
             isPrimary: dy.isPrimary
           }))
         });
@@ -240,7 +261,8 @@ app.post('/api/narrators', async (req, res) => {
           deathYears: {
             orderBy: [
               { isPrimary: 'desc' },
-              { year: 'asc' }
+              { year: 'asc' }, // سيرتب السنوات الرقمية
+              { deathDescription: 'asc' } // ثم الأوصاف النصية
             ]
           },
           _count: {

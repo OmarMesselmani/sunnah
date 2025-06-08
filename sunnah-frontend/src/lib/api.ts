@@ -27,6 +27,7 @@ export interface Narrator {
   deathYear?: string | number | null;
   deathYears?: NarratorDeathYear[];
   biography?: string;
+  translation?: string;
   _count?: {
     narratedHadiths: number;
     musnadHadiths: number;

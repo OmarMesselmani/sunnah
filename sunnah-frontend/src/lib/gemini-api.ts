@@ -14,8 +14,8 @@ export interface ExtractedNarrator {
   matchedNarratorName?: string;
   isConfirmed?: boolean;
   generation?: string;
-  // New property to mark duplicates for styling
   isDuplicateAcrossPaths?: boolean; 
+  translation?: string;
 }
 
 // Represents a single path of narration as returned by Gemini (Muhaddith-first)

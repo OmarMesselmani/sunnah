@@ -16,7 +16,11 @@ import {
   ChevronUp,
   UserPlus,
   Edit,
-  GitFork
+  GitFork,
+  Link2,
+  CheckCircle2, // إضافة أيقونة جديدة
+  AlertTriangle, // إضافة أيقونة جديدة
+  Check // تأكد من وجودها أو أضفها إذا كانت مختلفة عن CheckCircle2
 } from 'lucide-react';
 import { 
   analyzeIsnad, 
@@ -64,6 +68,16 @@ interface Narrator {
   generation: string;
   deathYear?: string | number | null; //  تعديل هنا ليتوافق مع lib/api.ts
   deathYears?: NarratorDeathYearFE[];  // استخدام الواجهة المحدثة
+  translation?: string;
+}
+
+// واجهة بيانات الراوي الجديد
+interface NewNarratorData {
+  fullName: string;
+  kunyah: string;
+  generation: string;
+  deathYear: string;
+  translation: string;
 }
 
 const getGenerationColor = (generation: string) => {
@@ -107,6 +121,22 @@ const generateSearchQueriesLocal = (narrator: ExtractedNarrator): string[] => {
   return finalQueries;
 };
 
+// خيارات الطبقات المطابقة لصفحة add-narrator
+const generationOptions = [
+  { value: 'الطبقة الأولى', label: 'الأولى' },
+  { value: 'الطبقة الثانية', label: 'الثانية' },
+  { value: 'الطبقة الثالثة', label: 'الثالثة' },
+  { value: 'الطبقة الرابعة', label: 'الرابعة' },
+  { value: 'الطبقة الخامسة', label: 'الخامسة' },
+  { value: 'الطبقة السادسة', label: 'السادسة' },
+  { value: 'الطبقة السابعة', label: 'السابعة' },
+  { value: 'الطبقة الثامنة', label: 'الثامنة' },
+  { value: 'الطبقة التاسعة', label: 'التاسعة' },
+  { value: 'الطبقة العاشرة', label: 'العاشرة' },
+  { value: 'الطبقة الحادية عشرة', label: 'الحادية عشرة' },
+  { value: 'الطبقة الثانية عشرة', label: 'الثانية عشرة' },
+];
+
 export default function BatchAddHadithPage() {
   const [hadiths, setHadiths] = useState<HadithEntry[]>([
     {
@@ -134,7 +164,7 @@ export default function BatchAddHadithPage() {
   const [currentHadithId, setCurrentHadithId] = useState<string | null>(null);
   
   const [showAddNarratorModal, setShowAddNarratorModal] = useState(false);
-  const [newNarratorData, setNewNarratorData] = useState({
+  const [newNarratorData, setNewNarratorData] = useState<NewNarratorData>({
     fullName: '',
     kunyah: '',
     generation: '',
@@ -197,19 +227,20 @@ export default function BatchAddHadithPage() {
       
       const updatedPathsPromises = analysisData.paths.map(async (path) => {
         const matchedNarratorsInPath = await Promise.all(
-          path.narrators.map(async (narrator) => {
+          path.narrators.map(async (narrator) => { // narrator is ExtractedNarrator from gemini-api
             const searchQueries = generateSearchQueriesLocal(narrator);
             for (const query of searchQueries) {
               try {
-                const result = await getNarrators({ search: query, limit: 1 });
+                const result = await getNarrators({ search: query, limit: 1 }); // result.narrators are Narrator[] from lib/api
                 if (result.narrators && result.narrators.length > 0) {
-                  const match = result.narrators[0];
+                  const match = result.narrators[0]; // match is a Narrator from lib/api
                   return {
                     ...narrator,
                     matchedNarratorId: match.id,
                     matchedNarratorName: match.fullName,
                     isConfirmed: true, 
-                    generation: match.generation
+                    generation: match.generation,
+                    translation: match.translation // <--- إضافة خاصية الترجمة هنا
                   };
                 }
               } catch (error) {
@@ -505,12 +536,13 @@ export default function BatchAddHadithPage() {
     setHadiths(prevHadiths => prevHadiths.map(h => {
       if (h.id === currentHadithId) {
         const newExtractedNarrator: ExtractedNarrator = {
-          name: selectedNarrator.fullName,
+          name: selectedNarrator.fullName, // أو اسم الإدخال الأصلي إذا كان هذا هو القصد
           order: narratorOrder,
           matchedNarratorId: selectedNarrator.id,
           matchedNarratorName: selectedNarrator.fullName,
           isConfirmed: true,
           generation: selectedNarrator.generation,
+          translation: selectedNarrator.translation, // إضافة الترجمة هنا
           isDuplicateAcrossPaths: false 
         };
   
@@ -584,80 +616,87 @@ export default function BatchAddHadithPage() {
     setShowAddNarratorModal(true);
   };
 
+  // الدالة المحدثة لإضافة راوي جديد إلى قاعدة البيانات
   const handleAddNewNarratorToDB = async (e: React.FormEvent) => {
     e.preventDefault();
-    // The existing guard for submit button is:
-    // disabled={isAddingNarrator || !newNarratorData.fullName || !newNarratorData.generation}
-    // We can add an explicit check here if needed, but the button's disabled state should cover it.
-
+    
     setIsAddingNarrator(true);
     try {
-      const payload: {
-        fullName: string;
-        generation: string;
-        kunyas?: string[];
-        translation?: string;
-        deathYears?: Array<{ year: number | null; deathDescription?: string | null; isPrimary: boolean }>;
-      } = {
+      // إنشاء البيانات بنفس الطريقة المستخدمة في صفحة add-narrator
+      const payload: any = {
         fullName: newNarratorData.fullName.trim(),
         generation: newNarratorData.generation,
       };
 
+      // إضافة الكنية كنص وليس مصفوفة (مطابق لصفحة add-narrator)
       if (newNarratorData.kunyah && newNarratorData.kunyah.trim()) {
-        payload.kunyas = [newNarratorData.kunyah.trim()];
+        payload.kunyas = newNarratorData.kunyah.trim();
       }
+
+      // إضافة الترجمة
       if (newNarratorData.translation && newNarratorData.translation.trim()) {
         payload.translation = newNarratorData.translation.trim();
       }
 
+      // معالجة سنة الوفاة بنفس طريقة صفحة add-narrator
       const deathYearInput = newNarratorData.deathYear.trim();
       if (deathYearInput) {
         const parsedYear = parseInt(deathYearInput, 10);
-        if (!isNaN(parsedYear)) {
-          // إذا كان الإدخال رقمًا صحيحًا، أرسله كـ year
-          payload.deathYears = [{ year: parsedYear, isPrimary: true, deathDescription: null }];
-        } else {
-          // إذا لم يكن الإدخال رقمًا، اعتبره deathDescription واجعل year فارغًا (null)
-          payload.deathYears = [{ year: null, deathDescription: deathYearInput, isPrimary: true }];
+        if (!isNaN(parsedYear) && parsedYear > 0) {
+          // إرسال كمصفوفة كائنات مطابق لصفحة add-narrator
+          payload.deathYears = [{
+            year: deathYearInput, // إرسال كنص ليتعامل معه الخادم
+            isPrimary: true
+          }];
         }
       }
-      // إذا كان deathYearInput فارغًا، فلن يتم إرسال الحقل deathYears، وهو أمر مقبول.
 
+      console.log('🚀 إرسال بيانات الراوي:', payload);
+
+      // استخدام fetch مباشرة بدلاً من api library
       const response = await fetch('http://localhost:5000/api/narrators', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        // من الأفضل تسجيل الخطأ الفعلي من الواجهة الخلفية لمزيد من التفاصيل
         console.error('Backend error:', errorData);
-        throw new Error(errorData.message || errorData.error || 'فشل إضافة الراوي');
+        throw new Error(errorData.error || errorData.message || 'فشل إضافة الراوي');
       }
-      const newNarrator = await response.json();
+
+      const result = await response.json();
+      console.log('✅ استجابة الخادم:', result);
       
-      // تحديث الراوي في السند بالمعلومات الجديدة من قاعدة البيانات
+      // استخراج بيانات الراوي من الاستجابة (مطابق لصفحة add-narrator)
+      const newNarrator = result.narrator || result;
+      
+      // تحديث الراوي في السند
       if (currentHadithId && currentPathIndex !== -1 && currentNarratorIndex !== -1) {
         updateNarratorInHadith(currentHadithId, currentPathIndex, currentNarratorIndex, {
           matchedNarratorId: newNarrator.id,
           matchedNarratorName: newNarrator.fullName,
           isConfirmed: true,
-          generation: newNarrator.generation
+          generation: newNarrator.generation,
+          translation: newNarrator.translation // إضافة الترجمة هنا
         });
       }
 
+      // إغلاق المودال وإعادة تعيين البيانات
       setShowAddNarratorModal(false);
       setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' });
-      setCurrentHadithId(null); // Reset these as the modal is closing
+      setCurrentHadithId(null);
       setCurrentPathIndex(-1);
       setCurrentNarratorIndex(-1);
 
-    } catch (error) { 
-        alert(`حدث خطأ أثناء إضافة الراوي: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
-        console.error('Error adding narrator to DB:', error);
-    } finally { 
-        setIsAddingNarrator(false); 
+    } catch (error: any) {
+      console.error('Error adding narrator to DB:', error);
+      alert(`حدث خطأ أثناء إضافة الراوي: ${error.message}`);
+    } finally {
+      setIsAddingNarrator(false);
     }
   };
   
@@ -712,9 +751,10 @@ export default function BatchAddHadithPage() {
     if (!currentHadithId || currentPathIndex === -1 || searchingNarratorIndex === -1) return;
     updateNarratorInHadith(currentHadithId, currentPathIndex, searchingNarratorIndex, {
       matchedNarratorId: narrator.id,
-      matchedNarratorName: narrator.fullName, // هذا يعرض الاسم من قاعدة البيانات بجانب اسم الإدخال
+      matchedNarratorName: narrator.fullName,
       isConfirmed: true,
-      generation: narrator.generation
+      generation: narrator.generation,
+      translation: narrator.translation // إضافة الترجمة هنا
     });
     setShowSearchModal(false);
     setSearchQuery('');
@@ -722,6 +762,15 @@ export default function BatchAddHadithPage() {
     setCurrentHadithId(null);
     setCurrentPathIndex(-1);
     setSearchingNarratorIndex(-1);
+  };
+
+  const handleLinkSanad = (hadithId: string) => {
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+    // TODO: Implement actual sanad linking logic
+    console.log(`Link Sanad action triggered for Hadith ID: ${hadithId}`, hadith);
+    alert(`سيتم هنا تنفيذ عملية ربط السند للحديث (ID: ${hadithId}). هذه الميزة قيد التطوير.`);
+    // Example: You might want to prepare data for another API call or update state
   };
 
   const onNarratorDragEnd = (result: DropResult, hadithId: string, pathIndex: number) => {
@@ -823,6 +872,7 @@ export default function BatchAddHadithPage() {
 
               {hadith.isExpanded && (
                 <div className="p-6">
+                  {/* ... Source and Hadith Number inputs ... */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">المصدر</label>
@@ -837,6 +887,7 @@ export default function BatchAddHadithPage() {
                       <input type="text" value={hadith.hadithNumber} onChange={(e) => updateHadith(hadith.id, { hadithNumber: e.target.value })} placeholder="مثال: 1234" className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500" />
                     </div>
                   </div>
+                  {/* Sanad input and analysis buttons */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-300 mb-2">السند</label>
                     <textarea value={hadith.sanad} onChange={(e) => updateHadith(hadith.id, { sanad: e.target.value })} placeholder="حدثنا..." rows={3} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500" />
@@ -857,15 +908,16 @@ export default function BatchAddHadithPage() {
                       </button>
                     </div>
                   </div>
+                  {/* Analysis error display */}
                   {hadith.analysisError && <div className="mb-4 bg-red-900/20 border border-red-800 text-red-400 px-3 py-2 rounded-lg text-sm"><AlertCircle size={16} className="inline mr-1" />{hadith.analysisError}</div>}
                   
+                  {/* Analyzed paths and narrators display */}
                   {hadith.isAnalyzed && hadith.analysisResult && hadith.analysisResult.paths && hadith.analysisResult.paths.length > 0 && (
                     <div className="mb-4 space-y-6">
                       {hadith.analysisResult.paths.map((path, pathIdx) => (
                         <div key={`path-${hadith.id}-${pathIdx}`} className="bg-gray-700/70 rounded-lg p-4 border border-gray-600">
                           <h4 className="font-semibold text-sm mb-3 text-blue-300 flex items-center">
                             <GitFork size={16} className="mr-2" />
-                            {/* تعديل هنا لعرض "السند" إذا كان هناك طريق واحد فقط */}
                             {hadith.analysisResult!.paths.length === 1 ? "السند" : (path.pathName || `الطريق ${pathIdx + 1}`)}
                             <span className="text-xs text-gray-400 mx-2">({path.narrators.length} راوي)</span>
                           </h4>
@@ -874,6 +926,7 @@ export default function BatchAddHadithPage() {
                               {(provided: DroppableProvided) => (
                                 <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
                                   {path.narrators.map((narrator, nIndex) => (
+                                    // ... Draggable Narrator Item ...
                                     <Draggable key={`${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}`} draggableId={`${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}`} index={nIndex}>
                                       {(providedDraggable: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                                         <div 
@@ -892,13 +945,33 @@ export default function BatchAddHadithPage() {
                                           />
                                           <button onClick={() => removeNarratorFromHadith(hadith.id, pathIdx, nIndex)} className="text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-gray-600" title="حذف الراوي"><X size={14} /></button>
                                           {narrator.matchedNarratorId ? (
-                                            <div className="flex items-center gap-1 sm:gap-2">
-                                              <span className={`text-xs sm:text-sm flex items-center gap-1 ${narrator.isConfirmed ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                                                {narrator.isConfirmed ? '✓' : '?'} {narrator.matchedNarratorName}
-                                                {narrator.generation && <span className={`text-xs px-1 py-0.5 rounded ${getGenerationColor(narrator.generation)}`}>{narrator.generation}</span>}
-                                              </span>
-                                              <button onClick={() => handleEditNarrator(hadith.id, pathIdx, nIndex)} className="text-gray-400 hover:text-yellow-400 p-1 rounded-full hover:bg-gray-600" title="تغيير الراوي"><Edit size={14} /></button>
-                                              {!narrator.isConfirmed && <button onClick={() => updateNarratorInHadith(hadith.id, pathIdx, nIndex, { isConfirmed: true })} className="text-yellow-400 hover:text-green-400 p-1 rounded-full hover:bg-gray-600 text-xs" title="تأكيد المطابقة">✓</button>}
+                                            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                              {narrator.isConfirmed ? (
+                                                <Link
+                                                  href={`/narrators/${narrator.matchedNarratorId}`}
+                                                  className="text-xs sm:text-sm text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1"
+                                                  title={narrator.translation ? narrator.translation.substring(0, 150) + (narrator.translation.length > 150 ? '...' : '') : 'لا توجد ترجمة مسجلة لهذا الراوي'}
+                                                >
+                                                  <CheckCircle2 size={14} className="mr-1 flex-shrink-0" />
+                                                  {narrator.matchedNarratorName}
+                                                </Link>
+                                              ) : (
+                                                <span className="text-xs sm:text-sm text-yellow-400 flex items-center gap-1">
+                                                  <AlertTriangle size={14} className="mr-1 flex-shrink-0" />
+                                                  {narrator.matchedNarratorName}
+                                                </span>
+                                              )}
+                                              {narrator.generation && <span className={`text-xs px-1 py-0.5 rounded ${getGenerationColor(narrator.generation)}`}>{narrator.generation}</span>}
+                                              <button onClick={() => handleEditNarrator(hadith.id, pathIdx, nIndex)} className="text-gray-400 hover:text-yellow-400 p-1 rounded-full hover:bg-gray-600" title="تغيير الراوي/إعادة البحث"><Edit size={14} /></button>
+                                              {!narrator.isConfirmed && (
+                                                <button 
+                                                  onClick={() => updateNarratorInHadith(hadith.id, pathIdx, nIndex, { isConfirmed: true })} 
+                                                  className="text-yellow-400 hover:text-green-400 p-1 rounded-full hover:bg-gray-600 text-xs" 
+                                                  title="تأكيد المطابقة"
+                                                >
+                                                  <Check size={14} />
+                                                </button>
+                                              )}
                                             </div>
                                           ) : (
                                             <div className="flex items-center gap-1 sm:gap-2">
@@ -919,6 +992,28 @@ export default function BatchAddHadithPage() {
                       ))}
                     </div>
                   )}
+
+                  {/* زر ربط السند الجديد */}
+                  {hadith.isAnalyzed &&
+                   hadith.analysisResult &&
+                   hadith.analysisResult.paths &&
+                   hadith.analysisResult.paths.length > 0 &&
+                   hadith.analysisResult.paths.every(p => 
+                     p.narrators.length > 0 && 
+                     p.narrators.every(n => n.matchedNarratorId && n.isConfirmed)
+                   ) && (
+                    <div className="my-4 flex justify-end">
+                      <button
+                        onClick={() => handleLinkSanad(hadith.id)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                      >
+                        <Link2 size={16} />
+                        ربط السند
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Matn input */}
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">المتن</label>
                     <textarea value={hadith.matn} onChange={(e) => updateHadith(hadith.id, { matn: e.target.value })} placeholder="نص الحديث..." rows={4} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500" />
@@ -1023,23 +1118,66 @@ export default function BatchAddHadithPage() {
           <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
               <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-white">إضافة / تعديل راوي جديد</h3>
-                <button onClick={() => { setShowAddNarratorModal(false); setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' }); setCurrentHadithId(null); setCurrentPathIndex(-1); setCurrentNarratorIndex(-1);}} className="text-gray-400 hover:text-gray-300 p-1 rounded-full hover:bg-gray-700"><X size={20} /></button>
+                <h3 className="text-lg font-semibold text-white">إضافة راوي جديد</h3>
+                <button 
+                  onClick={() => { 
+                    setShowAddNarratorModal(false); 
+                    setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' }); 
+                    setCurrentHadithId(null); 
+                    setCurrentPathIndex(-1); 
+                    setCurrentNarratorIndex(-1);
+                  }} 
+                  className="text-gray-400 hover:text-gray-300 p-1 rounded-full hover:bg-gray-700"
+                >
+                  <X size={20} />
+                </button>
               </div>
               <div className="p-6">
                 <form onSubmit={handleAddNewNarratorToDB} className="space-y-4">
                   <div>
-                    <label htmlFor="new-narrator-fullname" className="block text-sm font-medium text-gray-300 mb-1">الاسم الكامل <span className="text-red-500">*</span></label>
-                    <input id="new-narrator-fullname" type="text" value={newNarratorData.fullName} onChange={(e) => setNewNarratorData({...newNarratorData, fullName: e.target.value})} placeholder="اسم الراوي الكامل" required className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                    <label htmlFor="new-narrator-fullname" className="block text-sm font-medium text-gray-300 mb-1">
+                      الاسم الكامل <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      id="new-narrator-fullname" 
+                      type="text" 
+                      value={newNarratorData.fullName} 
+                      onChange={(e) => setNewNarratorData({...newNarratorData, fullName: e.target.value})} 
+                      placeholder="اسم الراوي الكامل" 
+                      required 
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    />
                   </div>
+                  
                   <div>
-                    <label htmlFor="new-narrator-kunyah" className="block text-sm font-medium text-gray-300 mb-1">الكنية</label>
-                    <input id="new-narrator-kunyah" type="text" value={newNarratorData.kunyah} onChange={(e) => setNewNarratorData({...newNarratorData, kunyah: e.target.value})} placeholder="كنية الراوي (اختياري)" className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                    <label htmlFor="new-narrator-kunyah" className="block text-sm font-medium text-gray-300 mb-1">
+                      الكنية
+                    </label>
+                    <input 
+                      id="new-narrator-kunyah" 
+                      type="text" 
+                      value={newNarratorData.kunyah} 
+                      onChange={(e) => setNewNarratorData({...newNarratorData, kunyah: e.target.value})} 
+                      placeholder="كنية الراوي (اختياري)" 
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    />
                   </div>
+                  
                   <div>
-                    <label htmlFor="new-narrator-generation" className="block text-sm font-medium text-gray-300 mb-1">الطبقة <span className="text-red-500">*</span></label>
-                    <select id="new-narrator-generation" value={newNarratorData.generation} onChange={(e) => setNewNarratorData({...newNarratorData, generation: e.target.value})} required className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <label htmlFor="new-narrator-generation" className="block text-sm font-medium text-gray-300 mb-1">
+                      الطبقة <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      id="new-narrator-generation" 
+                      value={newNarratorData.generation} 
+                      onChange={(e) => setNewNarratorData({...newNarratorData, generation: e.target.value})} 
+                      required 
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
                       <option value="">اختر الطبقة</option>
+                      <option value="صحابي">صحابي</option>
+                      <option value="تابعي">تابعي</option>
+                      <option value="تابع التابعين">تابع التابعين</option>
                       <option value="الطبقة الأولى">الأولى</option>
                       <option value="الطبقة الثانية">الثانية</option>
                       <option value="الطبقة الثالثة">الثالثة</option>
@@ -1052,24 +1190,64 @@ export default function BatchAddHadithPage() {
                       <option value="الطبقة العاشرة">العاشرة</option>
                       <option value="الطبقة الحادية عشرة">الحادية عشرة</option>
                       <option value="الطبقة الثانية عشرة">الثانية عشرة</option>
-                      {/* يمكنك إضافة الصحابة والتابعين هنا إذا أردت، أو إبقاؤها منفصلة كما في القائمة الأصلية */}
-                      {/* <option value="صحابي">صحابي</option> */}
-                      {/* <option value="تابعي">تابعي</option> */}
-                      {/* <option value="تابع التابعين">تابع التابعين</option> */}
                     </select>
                   </div>
+                  
                   <div>
-                    <label htmlFor="new-narrator-deathyear" className="block text-sm font-medium text-gray-300 mb-1">سنة الوفاة</label>
-                    <input id="new-narrator-deathyear" type="number" value={newNarratorData.deathYear} onChange={(e) => setNewNarratorData({...newNarratorData, deathYear: e.target.value})} placeholder="سنة الوفاة بالهجري" className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                    <label htmlFor="new-narrator-deathyear" className="block text-sm font-medium text-gray-300 mb-1">
+                      سنة الوفاة
+                    </label>
+                    <input 
+                      id="new-narrator-deathyear" 
+                      type="text" 
+                      value={newNarratorData.deathYear} 
+                      onChange={(e) => setNewNarratorData({...newNarratorData, deathYear: e.target.value})} 
+                      placeholder="سنة الوفاة بالهجري (مثل: 179)" 
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    />
                   </div>
+                  
                   <div>
-                    <label htmlFor="new-narrator-translation" className="block text-sm font-medium text-gray-300 mb-1">الترجمة</label>
-                    <textarea id="new-narrator-translation" value={newNarratorData.translation} onChange={(e) => setNewNarratorData({...newNarratorData, translation: e.target.value})} placeholder="أدخل ترجمة مختصرة للراوي..." rows={3} className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" dir="rtl" />
+                    <label htmlFor="new-narrator-translation" className="block text-sm font-medium text-gray-300 mb-1">
+                      الترجمة
+                    </label>
+                    <textarea 
+                      id="new-narrator-translation" 
+                      value={newNarratorData.translation} 
+                      onChange={(e) => setNewNarratorData({...newNarratorData, translation: e.target.value})} 
+                      placeholder="أدخل ترجمة مختصرة للراوي..." 
+                      rows={3} 
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" 
+                      dir="rtl" 
+                    />
                   </div>
+                  
                   <div className="flex justify-end gap-2 pt-2">
-                    <button type="button" onClick={() => { setShowAddNarratorModal(false); setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' }); setCurrentHadithId(null); setCurrentPathIndex(-1); setCurrentNarratorIndex(-1);}} className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">إلغاء</button>
-                    <button type="submit" disabled={isAddingNarrator || !newNarratorData.fullName || !newNarratorData.generation} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                      {isAddingNarrator ? <><Loader2 size={16} className="inline mr-2 animate-spin" /> جارٍ الإضافة...</> : 'حفظ معلومات الراوي'}
+                    <button 
+                      type="button" 
+                      onClick={() => { 
+                        setShowAddNarratorModal(false); 
+                        setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' }); 
+                        setCurrentHadithId(null); 
+                        setCurrentPathIndex(-1); 
+                        setCurrentNarratorIndex(-1);
+                      }} 
+                      className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
+                    >
+                      إلغاء
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={isAddingNarrator || !newNarratorData.fullName || !newNarratorData.generation} 
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isAddingNarrator ? 
+                        <>
+                          <Loader2 size={16} className="inline mr-2 animate-spin" /> 
+                          جارٍ الإضافة...
+                        </> : 
+                        'حفظ الراوي'
+                      }
                     </button>
                   </div>
                 </form>
