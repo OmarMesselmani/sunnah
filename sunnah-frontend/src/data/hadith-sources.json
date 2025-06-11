@@ -1,0 +1,326 @@
+{
+  "bukhari_books": [
+{
+  "bukhari_books": [
+    {
+      "id": 1,
+      "name": "كتاب بدء الوحي",
+      "startHadith": 1,
+      "endHadith": 7
+    },
+    {
+      "id": 2,
+      "name": "كتاب الإيمان",
+      "startHadith": 8,
+      "endHadith": 58
+    },
+    {
+      "id": 3,
+      "name": "كتاب العلم",
+      "startHadith": 59,
+      "endHadith": 134
+    },
+    {
+      "id": 4,
+      "name": "كتاب الوضوء",
+      "startHadith": 135,
+      "endHadith": 244
+    },
+    {
+      "id": 5,
+      "name": "كتاب الغسل",
+      "startHadith": 245,
+      "endHadith": 289
+    },
+    {
+      "id": 6,
+      "name": "كتاب الحيض",
+      "startHadith": 290,
+      "endHadith": 326
+    },
+    {
+      "id": 7,
+      "name": "كتاب التيمم",
+      "startHadith": 327,
+      "endHadith": 329
+    },
+    {
+      "id": 8,
+      "name": "كتاب الصلاة",
+      "startHadith": 330,
+      "endHadith": 498
+    },
+    {
+      "id": 9,
+      "name": "كتاب مواقيت الصلاة",
+      "startHadith": 499,
+      "endHadith": 573
+    },
+    {
+      "id": 10,
+      "name": "كتاب الأذان",
+      "startHadith": 574,
+      "endHadith": 617
+    },
+    {
+      "id": 11,
+      "name": "كتاب الجماعة والإمامة",
+      "startHadith": 618,
+      "endHadith": 698
+    },
+    {
+      "id": 12,
+      "name": "كتاب صفة الصلاة",
+      "startHadith": 699,
+      "endHadith": 835
+    },
+    {
+      "id": 13,
+      "name": "كتاب الجمعة",
+      "startHadith": 836,
+      "endHadith": 934
+    },
+    {
+      "id": 14,
+      "name": "كتاب العيدين",
+      "startHadith": 935,
+      "endHadith": 944
+    },
+    {
+      "id": 15,
+      "name": "كتاب الوتر",
+      "startHadith": 945,
+      "endHadith": 959
+    },
+    {
+      "id": 16,
+      "name": "كتاب الاستسقاء",
+      "startHadith": 960,
+      "endHadith": 966
+    },
+    {
+      "id": 17,
+      "name": "كتاب الكسوف",
+      "startHadith": 967,
+      "endHadith": 981
+    },
+    {
+      "id": 18,
+      "name": "كتاب الجنائز",
+      "startHadith": 982,
+      "endHadith": 999
+    },
+    {
+      "id": 19,
+      "name": "كتاب الزكاة",
+      "startHadith": 1000,
+      "endHadith": 1058
+    },
+    {
+      "id": 20,
+      "name": "كتاب صدقة الفطر",
+      "startHadith": 1059,
+      "endHadith": 1082
+    },
+    {
+      "id": 21,
+      "name": "كتاب الحج",
+      "startHadith": 1083,
+      "endHadith": 1189
+    },
+    {
+      "id": 22,
+      "name": "كتاب العمرة",
+      "startHadith": 1190,
+      "endHadith": 1215
+    },
+    {
+      "id": 23,
+      "name": "كتاب الصوم",
+      "startHadith": 1216,
+      "endHadith": 1233
+    },
+    {
+      "id": 24,
+      "name": "كتاب صلاة التراويح",
+      "startHadith": 1234,
+      "endHadith": 1237
+    },
+    {
+      "id": 25,
+      "name": "كتاب الاعتكاف",
+      "startHadith": 1238,
+      "endHadith": 1240
+    },
+    {
+      "id": 26,
+      "name": "كتاب البيوع",
+      "startHadith": 1241,
+      "endHadith": 1641
+    },
+    {
+      "id": 27,
+      "name": "كتاب السلم",
+      "startHadith": 1642,
+      "endHadith": 1654
+    },
+    {
+      "id": 28,
+      "name": "كتاب الشفعة",
+      "startHadith": 1655,
+      "endHadith": 1660
+    },
+    {
+      "id": 29,
+      "name": "كتاب الإجارة",
+      "startHadith": 1661,
+      "endHadith": 1690
+    },
+    {
+      "id": 30,
+      "name": "كتاب الحوالات",
+      "startHadith": 1691,
+      "endHadith": 1705
+    },
+    {
+      "id": 31,
+      "name": "كتاب الكفالة",
+      "startHadith": 1706,
+      "endHadith": 1718
+    },
+    {
+      "id": 32,
+      "name": "كتاب الوكالة",
+      "startHadith": 1719,
+      "endHadith": 1730
+    },
+    {
+      "id": 33,
+      "name": "كتاب المزارعة",
+      "startHadith": 1731,
+      "endHadith": 1754
+    },
+    {
+      "id": 34,
+      "name": "كتاب المساقاة",
+      "startHadith": 1755,
+      "endHadith": 1763
+    },
+    {
+      "id": 35,
+      "name": "كتاب الاستقراض وأداء الديون",
+      "startHadith": 1764,
+      "endHadith": 1798
+    },
+    {
+      "id": 36,
+      "name": "كتاب الخصومات",
+      "startHadith": 1799,
+      "endHadith": 1854
+    },
+    {
+      "id": 37,
+      "name": "كتاب اللقطة",
+      "startHadith": 1855,
+      "endHadith": 1888
+    },
+    {
+      "id": 38,
+      "name": "كتاب المظالم",
+      "startHadith": 1889,
+      "endHadith": 1918
+    },
+    {
+      "id": 39,
+      "name": "كتاب الشركة",
+      "startHadith": 1919,
+      "endHadith": 1938
+    },
+    {
+      "id": 40,
+      "name": "كتاب الرهن",
+      "startHadith": 1939,
+      "endHadith": 1949
+    },
+    {
+      "id": 41,
+      "name": "كتاب العتق",
+      "startHadith": 1950,
+      "endHadith": 1976
+    },
+    {
+      "id": 42,
+      "name": "كتاب الهبة",
+      "startHadith": 1977,
+      "endHadith": 2010
+    },
+    {
+      "id": 43,
+      "name": "كتاب الشهادات",
+      "startHadith": 2011,
+      "endHadith": 2023
+    },
+    {
+      "id": 44,
+      "name": "كتاب الصلح",
+      "startHadith": 2024,
+      "endHadith": 2031
+    },
+    {
+      "id": 45,
+      "name": "كتاب الشروط",
+      "startHadith": 2032,
+      "endHadith": 2047
+    },
+    {
+      "id": 46,
+      "name": "كتاب الوصايا",
+      "startHadith": 2048,
+      "endHadith": 2062
+    },
+    {
+      "id": 47,
+      "name": "كتاب الجهاد والسير",
+      "startHadith": 2063,
+      "endHadith": 2088
+    },
+    {
+      "id": 48,
+      "name": "كتاب الخمس",
+      "startHadith": 2089,
+      "endHadith": 2092
+    },
+    {
+      "id": 49,
+      "name": "كتاب الجزية والموادعة",
+      "startHadith": 2093,
+      "endHadith": 2101
+    },
+    {
+      "id": 50,
+      "name": "كتاب بدء الخلق",
+      "startHadith": 2102,
+      "endHadith": 2112
+    },
+    {
+      "id": 51,
+      "name": "كتاب الأنبياء",
+      "startHadith": 2113,
+      "endHadith": 2126
+    },
+    {
+      "id": 52,
+      "name": "كتاب المناقب",
+      "startHadith": 2127,
+      "endHadith": 2140
+    },
+    {
+      "id": 53,
+      "name": "كتاب فضائل الصحابة",
+      "startHadith": 2141,
+      "endHadith": 2228
+    }
+  ]
+}
+]
+}
