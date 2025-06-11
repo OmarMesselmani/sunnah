@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation'; // إضافة استيراد useRouter
 import Link from 'next/link';
 import { 
   User, 
@@ -14,10 +14,12 @@ import {
   Link as LinkIcon,
   Hash,
   ExternalLink,
-  Clock
+  Clock,
+  Trash2, // إضافة أيقونة الحذف
+  AlertTriangle // إضافة أيقونة التنبيه
 } from 'lucide-react';
-// تأكد من أن دوال API ترجع البيانات بالبنية الجديدة
-import { getNarratorById, getNarratorHadiths, getNarratorRelations, isValidUUID } from '@/lib/api';
+// أضف deleteNarrator إلى قائمة الاستيراد
+import { getNarratorById, getNarratorHadiths, getNarratorRelations, isValidUUID, deleteNarrator } from '@/lib/api';
 
 // تعريف الواجهة الجديدة هنا
 interface NarratorDeathYear {
@@ -68,6 +70,7 @@ interface Relation {
 
 export default function NarratorDetailPage() {
   const params = useParams();
+  const router = useRouter(); // إضافة router للتنقل بعد الحذف
   const narratorId = params.id as string;
   
   const [narrator, setNarrator] = useState<Narrator | null>(null);
@@ -79,6 +82,11 @@ export default function NarratorDetailPage() {
   const [hadithsPage, setHadithsPage] = useState(1);
   const [totalHadithsPages, setTotalHadithsPages] = useState(1);
   const [error, setError] = useState<string>('');
+  
+  // إضافة حالات جديدة لمربع حوار التأكيد والحذف
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (narratorId) {
@@ -233,6 +241,85 @@ export default function NarratorDetailPage() {
     return null; // لا توجد معلومات وفاة لعرضها
   };
 
+  // إضافة دالة لحذف الراوي
+  const handleDeleteNarrator = async () => {
+    if (!narratorId || !narrator) return;
+    
+    try {
+      setDeleting(true);
+      setDeleteError(null);
+      
+      const result = await deleteNarrator(narratorId);
+      
+      if (result.success) {
+        // تمت عملية الحذف بنجاح، انتقل إلى صفحة الرواة
+        router.push('/narrators?deleted=true');
+      } else {
+        // فشلت عملية الحذف
+        setDeleteError(result.message);
+        setShowDeleteConfirm(false);
+        setDeleting(false);
+      }
+    } catch (error: any) {
+      console.error('Error during narrator deletion:', error);
+      setDeleteError('حدث خطأ أثناء محاولة حذف الراوي');
+      setShowDeleteConfirm(false);
+      setDeleting(false);
+    }
+  };
+
+  // مربع حوار تأكيد الحذف
+  const DeleteConfirmDialog = () => {
+    if (!showDeleteConfirm) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700 shadow-xl">
+          <div className="flex items-start mb-4">
+            <AlertTriangle className="text-red-500 mt-1 mr-2 flex-shrink-0" size={24} />
+            <div>
+              <h3 className="text-xl font-bold text-white mb-2">تأكيد حذف الراوي</h3>
+              <p className="text-gray-300 mb-3">
+                هل أنت متأكد من رغبتك في حذف الراوي{' '}
+                <span className="font-bold text-white">{narrator?.fullName}</span>؟
+              </p>
+              <p className="text-red-400 text-sm mb-4">
+                تنبيه: سيؤدي هذا إلى حذف الراوي بشكل دائم من قاعدة البيانات مع جميع علاقاته.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-white transition-colors disabled:opacity-50"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={handleDeleteNarrator}
+              disabled={deleting}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-white flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {deleting ? (
+                <>
+                  <span className="inline-block h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
+                  جاري الحذف...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={16} />
+                  تأكيد الحذف
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -267,14 +354,38 @@ export default function NarratorDetailPage() {
   return (
     <div className="min-h-screen bg-gray-900 py-8 text-gray-100">
       <div className="container mx-auto px-4">
+        {/* مربع حوار تأكيد الحذف */}
+        <DeleteConfirmDialog />
+      
+        {/* رسالة خطأ الحذف */}
+        {deleteError && (
+          <div className="bg-red-900/60 border border-red-700 text-red-200 p-4 rounded-lg mb-6 flex items-center gap-3">
+            <AlertTriangle size={20} />
+            <span>{deleteError}</span>
+          </div>
+        )}
+        
         {/* زر العودة */}
-        <Link
-          href="/narrators"
-          className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 mb-6"
-        >
-          <ChevronLeft size={20} />
-          العودة لقائمة الرواة
-        </Link>
+        <div className="flex justify-between items-center mb-6">
+          <Link
+            href="/narrators"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300"
+          >
+            <ChevronLeft size={20} />
+            العودة لقائمة الرواة
+          </Link>
+          
+          {/* زر حذف الراوي - إضافة جديدة */}
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 rounded-lg border border-red-600/30 transition-all"
+            aria-label="حذف الراوي"
+            title="حذف الراوي"
+          >
+            <Trash2 size={18} />
+            حذف الراوي
+          </button>
+        </div>
 
         {/* الخانة العليا - معلومات الراوي الأساسية */}
         <div className="bg-gray-800 rounded-lg shadow-md p-8 mb-8 border border-gray-700">

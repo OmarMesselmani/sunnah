@@ -177,15 +177,22 @@ export const updateNarrator = async (id: string, narratorData: any) => {
   return response.data;
 };
 
-export const deleteNarrator = async (id: string) => {
-  // Validate UUID before making the request
-  if (!isValidUUID(id)) {
-    throw new Error('Invalid narrator ID format');
+// إضافة دالة حذف الراوي
+export async function deleteNarrator(narratorId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await api.delete(`/api/narrators/${narratorId}`);
+    return {
+      success: true,
+      message: response.data?.message || 'تم حذف الراوي بنجاح'
+    };
+  } catch (error: any) {
+    console.error('Error deleting narrator:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'فشل في حذف الراوي'
+    };
   }
-  
-  const response = await api.delete(`/narrators/${id}`);
-  return response.data;
-};
+}
 
 export const searchNarrators = async (query: string) => {
   const response = await api.get<Narrator[]>('/narrators/search', { 

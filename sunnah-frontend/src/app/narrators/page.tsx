@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation'; // إضافة هذا الاستيراد
 import { Search, User, Calendar, ChevronRight, Filter, UserPlus, Clock, Scroll } from 'lucide-react';
 import { getNarrators, getDisplayDeathYears, getPrimaryDeathYear } from '@/lib/api';
 import Link from 'next/link';
@@ -28,6 +29,9 @@ interface Narrator {
 }
 
 export default function NarratorsPage() {
+  const searchParams = useSearchParams(); // إضافة هذا
+  const deleted = searchParams.get('deleted'); // معرفة ما إذا تم التوجيه بعد الحذف
+  
   const [narrators, setNarrators] = useState<Narrator[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -35,9 +39,22 @@ export default function NarratorsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
+  // إضافة حالة لإشعار الحذف
+  const [showDeleteNotification, setShowDeleteNotification] = useState(false);
+  
   useEffect(() => {
     loadNarrators();
   }, [page, selectedGeneration]);
+
+  useEffect(() => {
+    // عرض إشعار الحذف إذا تم التوجيه بعد عملية حذف ناجحة
+    if (deleted === 'true') {
+      setShowDeleteNotification(true);
+      // إخفاء الإشعار بعد 5 ثواني
+      const timer = setTimeout(() => setShowDeleteNotification(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [deleted]);
 
   const loadNarrators = async () => {
     try {
@@ -141,8 +158,20 @@ export default function NarratorsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 py-8 text-gray-100">
+    <div className="min-h-screen bg-gray-900 py-8">
       <div className="container mx-auto px-4">
+        {/* إشعار الحذف - إضافة جديدة */}
+        {showDeleteNotification && (
+          <div className="mb-6 bg-green-900/40 border border-green-700 text-green-200 p-4 rounded-lg flex items-center gap-3 animate-fadeInOut">
+            <div className="bg-green-900 rounded-full p-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <span>تم حذف الراوي بنجاح</span>
+          </div>
+        )}
+        
         {/* Header with Add Narrator Button */}
         <div className="mb-8 flex justify-between items-center">
           <div>

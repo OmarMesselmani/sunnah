@@ -29,7 +29,7 @@ async function main() {
       fullName: 'عبد الرحمن بن صخر الدوسي',
       kunyah: 'أبو هريرة',
       generation: 'صحابي',
-      deathYear: 59,
+      deathYear: "59",
       biography: 'صحابي جليل، أكثر الصحابة رواية للحديث'
     }
   });
@@ -39,7 +39,7 @@ async function main() {
       fullName: 'عبد الله بن عمر بن الخطاب',
       kunyah: 'أبو عبد الرحمن',
       generation: 'صحابي',
-      deathYear: 73,
+      deathYear: "73",
       biography: 'صحابي جليل، من المكثرين في الرواية'
     }
   });
@@ -50,7 +50,7 @@ async function main() {
       kunyah: 'أبو عبد الله',
       laqab: 'إمام دار الهجرة',
       generation: 'تابع التابعين',
-      deathYear: 179,
+      deathYear: "179",
       biography: 'إمام دار الهجرة، صاحب المذهب المالكي'
     }
   });
@@ -61,7 +61,7 @@ async function main() {
       kunyah: 'أبو بكر',
       laqab: 'الزهري',
       generation: 'تابعي',
-      deathYear: 124,
+      deathYear: "124",
       biography: 'من كبار التابعين وأئمة الحديث'
     }
   });
@@ -70,7 +70,7 @@ async function main() {
     data: {
       fullName: 'عبد الله بن يوسف التنيسي',
       generation: 'تابع التابعين',
-      deathYear: 218,
+      deathYear: "218",
       biography: 'من شيوخ البخاري'
     }
   });
