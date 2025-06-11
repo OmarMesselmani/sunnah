@@ -177,22 +177,84 @@ export const updateNarrator = async (id: string, narratorData: any) => {
   return response.data;
 };
 
-// إضافة دالة حذف الراوي
-export async function deleteNarrator(narratorId: string): Promise<{ success: boolean; message: string }> {
+// دالة حذف الراوي مُحسّنة
+export const deleteNarrator = async (narratorId: string): Promise<{ success: boolean; message: string }> => {
   try {
-    const response = await api.delete(`/api/narrators/${narratorId}`);
+    // التحقق من صحة UUID
+    if (!isValidUUID(narratorId)) {
+      return {
+        success: false,
+        message: 'معرف الراوي غير صالح'
+      };
+    }
+
+    console.log(`🗑️ محاولة حذف الراوي بـ ID: ${narratorId}`);
+
+    // استخدام api instance للاستفادة من baseURL
+    const response = await api.delete(`/narrators/${narratorId}`);
+    
+    console.log('✅ استجابة الخادم:', response.data);
+    
     return {
       success: true,
       message: response.data?.message || 'تم حذف الراوي بنجاح'
     };
   } catch (error: any) {
-    console.error('Error deleting narrator:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'فشل في حذف الراوي'
-    };
+    console.error('❌ خطأ في حذف الراوي:', error);
+    
+    // معالجة أفضل للأخطاء
+    if (error.response) {
+      // الخادم استجاب برمز خطأ
+      const status = error.response.status;
+      const errorData = error.response.data;
+      const errorMessage = errorData?.error || errorData?.message || 'خطأ غير معروف';
+      
+      console.log(`📊 رمز الحالة: ${status}, رسالة الخطأ: ${errorMessage}`);
+      
+      switch (status) {
+        case 400:
+          return {
+            success: false,
+            message: `خطأ في البيانات: ${errorMessage}`
+          };
+        case 404:
+          return {
+            success: false,
+            message: 'الراوي غير موجود'
+          };
+        case 409:
+          return {
+            success: false,
+            message: errorMessage // استخدم رسالة الخادم مباشرة لأنها تحتوي على التفاصيل
+          };
+        case 500:
+          return {
+            success: false,
+            message: `خطأ داخلي في الخادم: ${errorMessage}`
+          };
+        default:
+          return {
+            success: false,
+            message: `خطأ من الخادم (${status}): ${errorMessage}`
+          };
+      }
+    } else if (error.request) {
+      // الطلب تم إرساله لكن لم يتم تلقي استجابة
+      console.log('📡 لا توجد استجابة من الخادم');
+      return {
+        success: false,
+        message: 'لا يمكن الاتصال بالخادم. تأكد من تشغيل الخادم على المنفذ 5000'
+      };
+    } else {
+      // خطأ آخر
+      console.log('💥 خطأ غير متوقع:', error.message);
+      return {
+        success: false,
+        message: `خطأ غير متوقع: ${error.message}`
+      };
+    }
   }
-}
+};
 
 export const searchNarrators = async (query: string) => {
   const response = await api.get<Narrator[]>('/narrators/search', { 
@@ -201,7 +263,7 @@ export const searchNarrators = async (query: string) => {
   return response.data;
 };
 
-// إضافة دالة البحث عن الرواة بالاسم
+// دالة البحث عن الرواة بالاسم
 export const searchNarratorsByName = async (search: string) => {
   const response = await api.get<NarratorsResponse>('/narrators', { 
     params: { search, limit: 10 } 
@@ -293,6 +355,21 @@ export const createHadithsBatch = async (hadiths: Array<{
   return response.data;
 };
 
+// دالة جلب مسند راوي محدد
+export const getNarratorMusnad = async (
+  id: string,
+  params?: { page?: number; limit?: number }
+) => {
+  if (!isValidUUID(id)) {
+    throw new Error('معرف الراوي غير صالح');
+  }
+  
+  const response = await api.get<MusnadResponse>(`/narrators/${id}/musnad`, { 
+    params 
+  });
+  return response.data;
+};
+
 // Health Check
 export const checkHealth = async () => {
   const response = await api.get<{
@@ -308,11 +385,11 @@ export const getDisplayDeathYears = (narrator: Narrator): string => {
     const displayEntries = narrator.deathYears.map(dy => {
       if (dy.year) return `${dy.year} هـ`;
       if (dy.deathDescription) return dy.deathDescription;
-      return null; // أو 'غير محدد' إذا أردت
+      return null;
     }).filter(Boolean); // إزالة القيم الفارغة
 
     if (displayEntries.length === 0) {
-      // لا يوجد شيء لعرضه من deathYears
+      // لا يوجد شيء لعرضه من deathYears، انتقل للنظام القديم
     } else if (displayEntries.length === 1) {
       return displayEntries[0] as string;
     } else {
@@ -363,21 +440,7 @@ export const getPrimaryDeathYear = (narrator: Narrator): number | null => {
   return null; // إذا لم يتم العثور على سنة وفاة رقمية صالحة
 };
 
-export const getNarratorMusnad = async (
-  id: string,
-  params?: { page?: number; limit?: number }
-) => {
-  if (!isValidUUID(id)) {
-    throw new Error('معرف الراوي غير صالح');
-  }
-  
-  const response = await api.get<MusnadResponse>(`/narrators/${id}/musnad`, { 
-    params 
-  });
-  return response.data;
-};
-
-// في صفحة المسند
+// دالة مساعدة لتحويل بيانات الأحاديث في صفحة المسند
 export const adaptHadiths = (apiHadiths: any[]): Hadith[] => {
   return apiHadiths.map(hadith => ({
     ...hadith,

@@ -249,21 +249,30 @@ export default function NarratorDetailPage() {
       setDeleting(true);
       setDeleteError(null);
       
+      console.log(`🗑️ محاولة حذف الراوي: ${narrator.fullName} (ID: ${narratorId})`);
+      
       const result = await deleteNarrator(narratorId);
       
+      console.log('📝 نتيجة عملية الحذف:', result);
+      
       if (result.success) {
-        // تمت عملية الحذف بنجاح، انتقل إلى صفحة الرواة
+        console.log('✅ تمت عملية الحذف بنجاح');
+        // إغلاق مربع الحوار
+        setShowDeleteConfirm(false);
+        // عرض رسالة نجاح مؤقتة
+        alert(`تم حذف الراوي "${narrator.fullName}" بنجاح`);
+        // الانتقال إلى صفحة الرواة
         router.push('/narrators?deleted=true');
       } else {
-        // فشلت عملية الحذف
+        console.log('❌ فشلت عملية الحذف:', result.message);
         setDeleteError(result.message);
         setShowDeleteConfirm(false);
-        setDeleting(false);
       }
     } catch (error: any) {
-      console.error('Error during narrator deletion:', error);
-      setDeleteError('حدث خطأ أثناء محاولة حذف الراوي');
+      console.error('💥 خطأ غير متوقع أثناء الحذف:', error);
+      setDeleteError(`خطأ غير متوقع: ${error.message || 'خطأ غير معروف'}`);
       setShowDeleteConfirm(false);
+    } finally {
       setDeleting(false);
     }
   };
@@ -283,9 +292,28 @@ export default function NarratorDetailPage() {
                 هل أنت متأكد من رغبتك في حذف الراوي{' '}
                 <span className="font-bold text-white">{narrator?.fullName}</span>؟
               </p>
-              <p className="text-red-400 text-sm mb-4">
-                تنبيه: سيؤدي هذا إلى حذف الراوي بشكل دائم من قاعدة البيانات مع جميع علاقاته.
-              </p>
+              <div className="bg-red-900/30 border border-red-700 rounded p-3 text-sm text-red-300 mb-4">
+                <p className="font-medium mb-2">⚠️ تحذير:</p>
+                <ul className="text-xs space-y-1">
+                  <li>• سيتم حذف الراوي نهائياً من قاعدة البيانات</li>
+                  <li>• سيتم حذف جميع علاقاته مع الرواة الآخرين</li>
+                  <li>• سيتم حذف معلومات سنوات الوفاة</li>
+                  <li>• لا يمكن التراجع عن هذا الإجراء</li>
+                </ul>
+              </div>
+              
+              {/* عرض إحصائيات الراوي */}
+              {narrator?._count && (
+                <div className="bg-gray-700/50 rounded p-3 text-sm text-gray-300 mb-4">
+                  <p className="font-medium mb-2">📊 إحصائيات الراوي:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>أحاديث يرويها: {narrator._count.narratedHadiths}</div>
+                    <div>أحاديث في مسنده: {narrator._count.musnadHadiths}</div>
+                    <div>شيوخه: {narrator._count.teachersRelation}</div>
+                    <div>تلاميذه: {narrator._count.studentsRelation}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           

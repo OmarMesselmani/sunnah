@@ -471,42 +471,99 @@ app.delete('/api/narrators/:id', async (req, res) => {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
 
+    // التحقق من وجود الراوي أولاً
+    const existingNarrator = await prisma.narrator.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            narratedHadiths: true,
+            musnadHadiths: true,
+            teachersRelation: true,
+            studentsRelation: true
+          }
+        }
+      }
+    });
+
+    if (!existingNarrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+
     // التحقق من وجود أحاديث مرتبطة
     const hadithCount = await prisma.hadithNarrator.count({
       where: { narratorId: id }
     });
 
     if (hadithCount > 0) {
-      return res.status(400).json({ 
-        error: `لا يمكن حذف الراوي لأنه مرتبط بـ ${hadithCount} حديث` 
+      return res.status(409).json({ 
+        error: `لا يمكن حذف الراوي لأنه مرتبط بـ ${hadithCount} حديث. يجب حذف الأحاديث أولاً أو إزالة الراوي منها.` 
       });
     }
 
-    await prisma.$transaction(async (tx: any) => {
+    // التحقق من وجود مسند
+    const musnadCount = await prisma.hadith.count({
+      where: { musnadSahabiId: id }
+    });
+
+    if (musnadCount > 0) {
+      return res.status(409).json({ 
+        error: `لا يمكن حذف الراوي لأنه صاحب مسند يحتوي على ${musnadCount} حديث. يجب حذف الأحاديث أولاً أو تغيير صاحب المسند.` 
+      });
+    }
+
+    // حذف الراوي مع جميع بياناته المرتبطة في transaction
+    await prisma.$transaction(async (tx) => {
       // حذف سنوات الوفاة أولاً
       await tx.narratorDeathYear.deleteMany({
         where: { narratorId: id }
       });
 
-      // ثم حذف الراوي
+      // حذف علاقات الشيوخ والتلاميذ
+      await tx.narratorRelation.deleteMany({
+        where: { 
+          OR: [
+            { narratorId: id },
+            { teacherId: id }
+          ]
+        }
+      });
+
+      // حذف المراجعات اليدوية إن وجدت (إذا كان هناك جدول للمراجعات مرتبط بالراوي)
+      // await tx.manualReview.deleteMany({
+      //   where: { reviewerId: id } // إذا كان هناك حقل reviewerId
+      // });
+
+      // حذف الراوي نفسه
       await tx.narrator.delete({
         where: { id }
       });
     });
 
+    console.log(`✅ تم حذف الراوي "${existingNarrator.fullName}" (ID: ${id}) بنجاح`);
+
     res.json({
       success: true,
-      message: 'تم حذف الراوي بنجاح'
+      message: `تم حذف الراوي "${existingNarrator.fullName}" بنجاح`
     });
 
   } catch (error: any) {
-    console.error('Error deleting narrator:', error);
+    console.error('❌ خطأ في حذف الراوي:', error);
     
     if (error.code === 'P2025') {
       return res.status(404).json({ error: 'الراوي غير موجود' });
     }
     
-    res.status(500).json({ error: 'حدث خطأ في حذف الراوي' });
+    if (error.code === 'P2003') {
+      return res.status(409).json({ 
+        error: 'لا يمكن حذف الراوي لوجود بيانات مرتبطة به. يجب حذف البيانات المرتبطة أولاً.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'حدث خطأ داخلي أثناء حذف الراوي',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
