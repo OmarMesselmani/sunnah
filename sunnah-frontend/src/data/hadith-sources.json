@@ -1,7 +1,5 @@
 {
   "bukhari_books": [
-{
-  "bukhari_books": [
     {
       "id": 1,
       "name": "كتاب بدء الوحي",
@@ -18,309 +16,541 @@
       "id": 3,
       "name": "كتاب العلم",
       "startHadith": 59,
-      "endHadith": 134
+      "endHadith": 115
     },
     {
       "id": 4,
       "name": "كتاب الوضوء",
-      "startHadith": 135,
-      "endHadith": 244
+      "startHadith": 116,
+      "endHadith": 283
     },
     {
       "id": 5,
       "name": "كتاب الغسل",
-      "startHadith": 245,
-      "endHadith": 289
+      "startHadith": 284,
+      "endHadith": 328
     },
     {
       "id": 6,
       "name": "كتاب الحيض",
-      "startHadith": 290,
-      "endHadith": 326
+      "startHadith": 329,
+      "endHadith": 343
     },
     {
       "id": 7,
       "name": "كتاب التيمم",
-      "startHadith": 327,
-      "endHadith": 329
+      "startHadith": 344,
+      "endHadith": 362
     },
     {
       "id": 8,
       "name": "كتاب الصلاة",
-      "startHadith": 330,
-      "endHadith": 498
+      "startHadith": 363,
+      "endHadith": 564
     },
     {
       "id": 9,
       "name": "كتاب مواقيت الصلاة",
-      "startHadith": 499,
-      "endHadith": 573
+      "startHadith": 565,
+      "endHadith": 653
     },
     {
       "id": 10,
       "name": "كتاب الأذان",
-      "startHadith": 574,
-      "endHadith": 617
+      "startHadith": 654,
+      "endHadith": 885
     },
     {
       "id": 11,
-      "name": "كتاب الجماعة والإمامة",
-      "startHadith": 618,
-      "endHadith": 698
+      "name": "كتاب الجمعة",
+      "startHadith": 886,
+      "endHadith": 915
     },
     {
       "id": 12,
-      "name": "كتاب صفة الصلاة",
-      "startHadith": 699,
-      "endHadith": 835
+      "name": "كتاب صلاة الخوف",
+      "startHadith": 916,
+      "endHadith": 924
     },
     {
       "id": 13,
-      "name": "كتاب الجمعة",
-      "startHadith": 836,
-      "endHadith": 934
+      "name": "كتاب العيدين",
+      "startHadith": 925,
+      "endHadith": 973
     },
     {
       "id": 14,
-      "name": "كتاب العيدين",
-      "startHadith": 935,
-      "endHadith": 944
+      "name": "كتاب الوتر",
+      "startHadith": 974,
+      "endHadith": 989
     },
     {
       "id": 15,
-      "name": "كتاب الوتر",
-      "startHadith": 945,
-      "endHadith": 959
+      "name": "كتاب الاستسقاء",
+      "startHadith": 990,
+      "endHadith": 1025
     },
     {
       "id": 16,
-      "name": "كتاب الاستسقاء",
-      "startHadith": 960,
-      "endHadith": 966
+      "name": "كتاب الكسوف (كسوف الشمس)",
+      "startHadith": 1026,
+      "endHadith": 1054
     },
     {
       "id": 17,
-      "name": "كتاب الكسوف",
-      "startHadith": 967,
-      "endHadith": 981
+      "name": "كتاب سجود القرآن",
+      "startHadith": 1055,
+      "endHadith": 1070
     },
     {
       "id": 18,
-      "name": "كتاب الجنائز",
-      "startHadith": 982,
-      "endHadith": 999
+      "name": "كتاب التقصير",
+      "startHadith": 1071,
+      "endHadith": 1115
     },
     {
       "id": 19,
-      "name": "كتاب الزكاة",
-      "startHadith": 1000,
-      "endHadith": 1058
+      "name": "كتاب التهجد بالليل",
+      "startHadith": 1116,
+      "endHadith": 1191
     },
     {
       "id": 20,
-      "name": "كتاب صدقة الفطر",
-      "startHadith": 1059,
-      "endHadith": 1082
+      "name": "كتاب فضل الصلاة بمسجدي مكة والمدينة",
+      "startHadith": 1192,
+      "endHadith": 1201
     },
     {
       "id": 21,
-      "name": "كتاب الحج",
-      "startHadith": 1083,
-      "endHadith": 1189
-    },
-    {
-      "id": 22,
-      "name": "كتاب العمرة",
-      "startHadith": 1190,
-      "endHadith": 1215
-    },
-    {
-      "id": 23,
-      "name": "كتاب الصوم",
-      "startHadith": 1216,
+      "name": "كتاب السهو",
+      "startHadith": 1202,
       "endHadith": 1233
     },
     {
-      "id": 24,
-      "name": "كتاب صلاة التراويح",
+      "id": 22,
+      "name": "كتاب الجنائز",
       "startHadith": 1234,
-      "endHadith": 1237
+      "endHadith": 1420
+    },
+    {
+      "id": 23,
+      "name": "كتاب الزكاة",
+      "startHadith": 1421,
+      "endHadith": 1568
+    },
+    {
+      "id": 24,
+      "name": "كتاب صدقة الفطر (فرضها)",
+      "startHadith": 1569,
+      "endHadith": 1570
     },
     {
       "id": 25,
-      "name": "كتاب الاعتكاف",
-      "startHadith": 1238,
-      "endHadith": 1240
+      "name": "كتاب الحج",
+      "startHadith": 1571,
+      "endHadith": 1781
     },
     {
       "id": 26,
-      "name": "كتاب البيوع",
-      "startHadith": 1241,
-      "endHadith": 1641
+      "name": "كتاب العمرة",
+      "startHadith": 1782,
+      "endHadith": 1820
     },
     {
       "id": 27,
-      "name": "كتاب السلم",
-      "startHadith": 1642,
-      "endHadith": 1654
+      "name": "كتاب المحصر وجزاء الصيد",
+      "startHadith": 1821,
+      "endHadith": 1846
     },
     {
       "id": 28,
-      "name": "كتاب الشفعة",
-      "startHadith": 1655,
-      "endHadith": 1660
+      "name": "كتاب حرم المدينة",
+      "startHadith": 1847,
+      "endHadith": 1860
     },
     {
       "id": 29,
-      "name": "كتاب الإجارة",
-      "startHadith": 1661,
-      "endHadith": 1690
+      "name": "كتاب الصوم",
+      "startHadith": 1861,
+      "endHadith": 2001
     },
     {
       "id": 30,
-      "name": "كتاب الحوالات",
-      "startHadith": 1691,
-      "endHadith": 1705
+      "name": "كتاب الاعتكاف",
+      "startHadith": 2002,
+      "endHadith": 2027
     },
     {
       "id": 31,
-      "name": "كتاب الكفالة",
-      "startHadith": 1706,
-      "endHadith": 1718
+      "name": "كتاب البيوع",
+      "startHadith": 2028,
+      "endHadith": 2244
     },
     {
       "id": 32,
-      "name": "كتاب الوكالة",
-      "startHadith": 1719,
-      "endHadith": 1730
+      "name": "كتاب السلم",
+      "startHadith": 2245,
+      "endHadith": 2260
     },
     {
       "id": 33,
-      "name": "كتاب المزارعة",
-      "startHadith": 1731,
-      "endHadith": 1754
+      "name": "كتاب الشفعة",
+      "startHadith": 2261,
+      "endHadith": 2264
     },
     {
       "id": 34,
-      "name": "كتاب المساقاة",
-      "startHadith": 1755,
-      "endHadith": 1763
+      "name": "كتاب الإجارة",
+      "startHadith": 2265,
+      "endHadith": 2298
     },
     {
       "id": 35,
-      "name": "كتاب الاستقراض وأداء الديون",
-      "startHadith": 1764,
-      "endHadith": 1798
+      "name": "كتاب الحوالات",
+      "startHadith": 2299,
+      "endHadith": 2302
     },
     {
       "id": 36,
-      "name": "كتاب الخصومات",
-      "startHadith": 1799,
-      "endHadith": 1854
+      "name": "كتاب الكفالة",
+      "startHadith": 2303,
+      "endHadith": 2312
     },
     {
       "id": 37,
-      "name": "كتاب اللقطة",
-      "startHadith": 1855,
-      "endHadith": 1888
+      "name": "كتاب الوكالة",
+      "startHadith": 2313,
+      "endHadith": 2334
     },
     {
       "id": 38,
-      "name": "كتاب المظالم",
-      "startHadith": 1889,
-      "endHadith": 1918
+      "name": "كتاب المزارعة",
+      "startHadith": 2335,
+      "endHadith": 2370
     },
     {
       "id": 39,
-      "name": "كتاب الشركة",
-      "startHadith": 1919,
-      "endHadith": 1938
+      "name": "كتاب المساقاة",
+      "startHadith": 2371,
+      "endHadith": 2404
     },
     {
       "id": 40,
-      "name": "كتاب الرهن",
-      "startHadith": 1939,
-      "endHadith": 1949
+      "name": "كتاب الاستقراض وأداء الديون والحجر والتفليس",
+      "startHadith": 2405,
+      "endHadith": 2435
     },
     {
       "id": 41,
-      "name": "كتاب العتق",
-      "startHadith": 1950,
-      "endHadith": 1976
+      "name": "كتاب الخسومات",
+      "startHadith": 2436,
+      "endHadith": 2454
     },
     {
       "id": 42,
-      "name": "كتاب الهبة",
-      "startHadith": 1977,
-      "endHadith": 2010
+      "name": "كتاب اللقطة",
+      "startHadith": 2455,
+      "endHadith": 2470
     },
     {
       "id": 43,
-      "name": "كتاب الشهادات",
-      "startHadith": 2011,
-      "endHadith": 2023
+      "name": "كتاب المظالم والغصب",
+      "startHadith": 2471,
+      "endHadith": 2522
     },
     {
       "id": 44,
-      "name": "كتاب الصلح",
-      "startHadith": 2024,
-      "endHadith": 2031
+      "name": "كتاب الشركة في الطعام والنهر والعروض",
+      "startHadith": 2523,
+      "endHadith": 2546
     },
     {
       "id": 45,
-      "name": "كتاب الشروط",
-      "startHadith": 2032,
-      "endHadith": 2047
+      "name": "كتاب الرهن",
+      "startHadith": 2547,
+      "endHadith": 2556
     },
     {
       "id": 46,
-      "name": "كتاب الوصايا",
-      "startHadith": 2048,
-      "endHadith": 2062
+      "name": "كتاب العتق وفضله",
+      "startHadith": 2557,
+      "endHadith": 2583
     },
     {
       "id": 47,
-      "name": "كتاب الجهاد والسير",
-      "startHadith": 2063,
-      "endHadith": 2088
+      "name": "كتاب إثم من قف مملوكه",
+      "startHadith": 2584,
+      "endHadith": 2584
     },
     {
       "id": 48,
-      "name": "كتاب الخمس",
-      "startHadith": 2089,
-      "endHadith": 2092
+      "name": "كتاب الهبة",
+      "startHadith": 2585,
+      "endHadith": 2593
     },
     {
       "id": 49,
-      "name": "كتاب الجزية والموادعة",
-      "startHadith": 2093,
-      "endHadith": 2101
+      "name": "كتاب الشهادات",
+      "startHadith": 2594,
+      "endHadith": 2663
     },
     {
       "id": 50,
-      "name": "كتاب بدء الخلق",
-      "startHadith": 2102,
-      "endHadith": 2112
+      "name": "كتاب الصلح",
+      "startHadith": 2664,
+      "endHadith": 2687
     },
     {
       "id": 51,
-      "name": "كتاب الأنبياء",
-      "startHadith": 2113,
-      "endHadith": 2126
+      "name": "كتاب الشروط",
+      "startHadith": 2688,
+      "endHadith": 2715
     },
     {
       "id": 52,
-      "name": "كتاب المناقب",
-      "startHadith": 2127,
-      "endHadith": 2140
+      "name": "كتاب الوصايا",
+      "startHadith": 2716,
+      "endHadith": 2754
     },
     {
       "id": 53,
-      "name": "كتاب فضائل الصحابة",
-      "startHadith": 2141,
-      "endHadith": 2228
+      "name": "كتاب فضل الجهاد والسير",
+      "startHadith": 2755,
+      "endHadith": 2810
+    },
+    {
+      "id": 54,
+      "name": "كتاب فرض الخمس",
+      "startHadith": 2811,
+      "endHadith": 2842
+    },
+    {
+      "id": 55,
+      "name": "كتاب الجزية والموادعة",
+      "startHadith": 2843,
+      "endHadith": 2854
+    },
+    {
+      "id": 56,
+      "name": "كتاب بدء الخلق",
+      "startHadith": 2855,
+      "endHadith": 2899
+    },
+    {
+      "id": 57,
+      "name": "كتاب المناقب",
+      "startHadith": 2900,
+      "endHadith": 3639
+    },
+    {
+      "id": 58,
+      "name": "كتاب فضائل أصحاب النبي صلى الله عليه وسلم",
+      "startHadith": 3640,
+      "endHadith": 3799
+    },
+    {
+      "id": 59,
+      "name": "كتاب غزوة العشيرة أو العسيرة",
+      "startHadith": 3800,
+      "endHadith": 4452
+    },
+    {
+      "id": 60,
+      "name": "كتاب التفسير",
+      "startHadith": 4453,
+      "endHadith": 4901
+    },
+    {
+      "id": 61,
+      "name": "كتاب فضائل القرآن",
+      "startHadith": 4902,
+      "endHadith": 5052
+    },
+    {
+      "id": 62,
+      "name": "كتاب النكاح",
+      "startHadith": 5053,
+      "endHadith": 5198
+    },
+    {
+      "id": 63,
+      "name": "كتاب الطلاق",
+      "startHadith": 5199,
+      "endHadith": 5303
+    },
+    {
+      "id": 64,
+      "name": "كتاب النفقة",
+      "startHadith": 5304,
+      "endHadith": 5337
+    },
+    {
+      "id": 65,
+      "name": "كتاب الأطعمة",
+      "startHadith": 5338,
+      "endHadith": 5440
+    },
+    {
+      "id": 66,
+      "name": "كتاب العقيقة",
+      "startHadith": 5441,
+      "endHadith": 5447
+    },
+    {
+      "id": 67,
+      "name": "كتاب الذبائح والصيد",
+      "startHadith": 5448,
+      "endHadith": 5524
+    },
+    {
+      "id": 68,
+      "name": "كتاب الأضاحي",
+      "startHadith": 5525,
+      "endHadith": 5554
+    },
+    {
+      "id": 69,
+      "name": "كتاب الأشربة",
+      "startHadith": 5555,
+      "endHadith": 5624
+    },
+    {
+      "id": 70,
+      "name": "كتاب المرضى",
+      "startHadith": 5625,
+      "endHadith": 5663
+    },
+    {
+      "id": 71,
+      "name": "كتاب الطب (المرضى)",
+      "startHadith": 5664,
+      "endHadith": 5760
+    },
+    {
+      "id": 72,
+      "name": "كتاب اللباس",
+      "startHadith": 5761,
+      "endHadith": 5948
+    },
+    {
+      "id": 73,
+      "name": "كتاب الأدب",
+      "startHadith": 5949,
+      "endHadith": 6234
+    },
+    {
+      "id": 74,
+      "name": "كتاب الاستئذان",
+      "startHadith": 6235,
+      "endHadith": 6317
+    },
+    {
+      "id": 75,
+      "name": "كتاب الدعوات",
+      "startHadith": 6318,
+      "endHadith": 6431
+    },
+    {
+      "id": 76,
+      "name": "كتاب الرقاق",
+      "startHadith": 6432,
+      "endHadith": 6620
+    },
+    {
+      "id": 77,
+      "name": "كتاب القدر",
+      "startHadith": 6621,
+      "endHadith": 6651
+    },
+    {
+      "id": 78,
+      "name": "كتاب الأيمان والنذور",
+      "startHadith": 6652,
+      "endHadith": 6746
+    },
+    {
+      "id": 79,
+      "name": "كتاب كفارات الأيمان",
+      "startHadith": 6747,
+      "endHadith": 6762
+    },
+    {
+      "id": 80,
+      "name": "كتاب الفرائض",
+      "startHadith": 6763,
+      "endHadith": 6818
+    },
+    {
+      "id": 81,
+      "name": "كتاب المحاربين من أهل الكفر والردة",
+      "startHadith": 6819,
+      "endHadith": 6867
+    },
+    {
+      "id": 82,
+      "name": "كتاب الديات",
+      "startHadith": 6868,
+      "endHadith": 6930
+    },
+    {
+      "id": 83,
+      "name": "كتاب استتابة المرتدين والمعاندين وقتالهم",
+      "startHadith": 6931,
+      "endHadith": 6979
+    },
+    {
+      "id": 84,
+      "name": "كتاب الإكراه",
+      "startHadith": 6980,
+      "endHadith": 6996
+    },
+    {
+      "id": 85,
+      "name": "كتاب ترك الحيل",
+      "startHadith": 6997,
+      "endHadith": 7027
+    },
+    {
+      "id": 86,
+      "name": "كتاب التعبير",
+      "startHadith": 7028,
+      "endHadith": 7092
+    },
+    {
+      "id": 87,
+      "name": "كتاب الفتن",
+      "startHadith": 7093,
+      "endHadith": 7173
+    },
+    {
+      "id": 88,
+      "name": "كتاب الأحكام",
+      "startHadith": 7174,
+      "endHadith": 7266
+    },
+    {
+      "id": 89,
+      "name": "كتاب التمني",
+      "startHadith": 7267,
+      "endHadith": 7288
+    },
+    {
+      "id": 90,
+      "name": "كتاب أخبار الآحاد",
+      "startHadith": 7289,
+      "endHadith": 7310
+    },
+    {
+      "id": 91,
+      "name": "كتاب الاعتصام بالكتاب والسنة",
+      "startHadith": 7311,
+      "endHadith": 7421
+    },
+    {
+      "id": 92,
+      "name": "كتاب التوحيد",
+      "startHadith": 7422,
+      "endHadith": 7563
     }
   ]
-}
-]
 }
