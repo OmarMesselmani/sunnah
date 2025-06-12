@@ -1,6 +1,0 @@
-{
-  "/narrators/page": "app/narrators/page.js",
-  "/narrators/[id]/page": "app/narrators/[id]/page.js",
-  "/page": "app/page.js",
-  "/admin/add-narrators/page": "app/admin/add-narrators/page.js"
-}
