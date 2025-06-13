@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation'; // useSearchParams للحصول على رقم الصفحة
 import { 
   ChevronLeft, 
   User, 
@@ -13,74 +13,22 @@ import {
   Calendar, 
   Clock, 
   Scroll,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
-import { getNarratorById, getNarratorMusnad } from '@/lib/api';
+// استيراد الدوال والواجهات اللازمة من lib/api
+import { 
+  getNarratorById, 
+  getNarratorMusnad, // دالة جلب المسند الجديدة
+  isValidUUID,
+  type Narrator,      // استخدام الواجهات من lib/api
+  type Hadith,
+  type MusnadResponse, // استخدام الواجهات من lib/api
+  type PaginationInfo, // استخدام الواجهات من lib/api
+  type NarratorDeathYear // استخدام الواجهات من lib/api
+} from '@/lib/api';
 
-// واجهات محلية مبسطة
-interface NarratorDeathYear {
-  id: string;
-  year?: number | null;
-  deathDescription?: string | null;
-  source?: string;
-}
-
-interface Narrator {
-  id: string;
-  fullName: string;
-  kunyah?: string;
-  laqab?: string;
-  generation: string;
-  deathYear?: string | number | null;
-  deathYears?: NarratorDeathYear[];
-  _count?: {
-    narratedHadiths: number;
-    musnadHadiths: number;
-  };
-}
-
-interface Source {
-  id: string | number;
-  name: string;
-  shortName?: string;
-}
-
-interface Book {
-  id: string | number;
-  name: string;
-}
-
-interface Chapter {
-  id: string | number;
-  name: string;
-}
-
-interface Hadith {
-  id: string | number;
-  hadithNumber: string;
-  matn: string;
-  sanad: string;
-  chain?: string;
-  grade?: string;
-  explanation?: string;
-  source: Source;
-  book?: Book;
-  chapter?: Chapter;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  pages: number;
-}
-
-interface MusnadResponse {
-  hadiths: Hadith[];
-  pagination: Pagination;
-}
-
-// الألوان حسب طبقة الراوي
+// الألوان حسب طبقة الراوي (تبقى كما هي)
 const getGenerationColor = (generation: string) => {
   if (generation.includes('صحابي') || generation.includes('صحابية')) {
     return 'bg-green-900/30 text-green-400';
@@ -94,15 +42,24 @@ const getGenerationColor = (generation: string) => {
 };
 
 export default function NarratorMusnadPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const id = params.id as string;
+
   const [narrator, setNarrator] = useState<Narrator | null>(null);
   const [hadiths, setHadiths] = useState<Hadith[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1,
+  });
 
   useEffect(() => {
+    const currentPage = parseInt(searchParams.get('page') || '1', 10);
+
     const fetchData = async () => {
       if (!id) {
         setError('معرف الراوي مفقود');
@@ -110,59 +67,111 @@ export default function NarratorMusnadPage() {
         return;
       }
 
+      setLoading(true);
+      setError('');
+      let narratorData: Narrator | null = null;
+
       try {
-        setLoading(true);
-        setError('');
+        if (!isValidUUID(id)) {
+          throw new Error('معرف الراوي غير صالح');
+        }
         
-        // جلب معلومات الراوي
-        const narratorData = await getNarratorById(id as string);
+        console.log('🔍 جلب معلومات الراوي:', id);
+        narratorData = await getNarratorById(id);
         setNarrator(narratorData);
+        console.log('✅ تم جلب معلومات الراوي:', narratorData);
         
-        // جلب أحاديث المسند
-        const musnadResponse = await getNarratorMusnad(id as string, { page, limit: 10 });
-        setHadiths(musnadResponse.hadiths || []);
-        setTotalPages(musnadResponse.pagination?.pages || 1);
-        
-      } catch (error: any) {
-        console.error('Error fetching musnad data:', error);
-        if (error.message?.includes('404') || error.response?.status === 404) {
-          setError('الراوي غير موجود');
-        } else if (error.message?.includes('Invalid narrator ID format')) {
+      } catch (err: any) {
+        console.error('❌ خطأ في جلب معلومات الراوي:', err);
+        if (err.message?.includes('404') || err.response?.status === 404 || err.message?.toLowerCase().includes('not found')) {
+          setError('الراوي غير موجود'); // رسالة خطأ أكثر تحديداً
+        } else if (err.message?.includes('معرف الراوي غير صالح')) {
           setError('معرف الراوي غير صالح');
         } else {
-          setError('حدث خطأ أثناء تحميل بيانات المسند');
+          setError(err.message || 'حدث خطأ أثناء تحميل معلومات الراوي');
         }
-      } finally {
         setLoading(false);
+        return; // التوقف إذا لم يتم العثور على الراوي أو كان المعرف غير صالح
       }
+
+      // إذا تم العثور على الراوي، يتم المتابعة لجلب المسند
+      if (narratorData) {
+        try {
+          console.log('📚 جلب أحاديث المسند للصفحة:', currentPage);
+          const musnadResponse = await getNarratorMusnad(id, { page: currentPage, limit: 10 });
+          console.log('📊 استجابة المسند:', musnadResponse);
+          
+          if (musnadResponse && musnadResponse.hadiths) {
+            setHadiths(musnadResponse.hadiths);
+            setPagination(musnadResponse.pagination);
+            if (musnadResponse.hadiths.length === 0 && musnadResponse.pagination.total === 0) {
+              console.log('ℹ️ الراوي موجود ولكن لا توجد أحاديث في مسنده');
+            }
+            // console.log(`✅ تم جلب ${musnadResponse.hadiths.length} حديث`); // يمكنك إبقاء هذا السطر أو حذفه
+          } else {
+            console.log('⚠️ لا توجد أحاديث في الاستجابة للمسند');
+            setHadiths([]);
+            setPagination(prev => ({ ...prev, total: 0, pages: 1, page: currentPage }));
+          }
+        } catch (err: any) {
+          console.error('❌ خطأ في جلب أحاديث المسند:', err); // الخطأ العام
+          // تسجيل استجابة الخادم التفصيلية إذا كانت موجودة
+          if (err.response) {
+            console.error('Server response for musnad error:', {
+              status: err.response.status,
+              data: err.response.data,
+              headers: err.response.headers,
+            });
+          }
+
+          if (err.response?.status === 404) {
+            // التحقق من رسالة الخطأ المحددة من الخادم إذا كانت 404
+            if (err.response.data?.error === 'الراوي غير موجود') {
+              setError('الخادم أفاد بأن الراوي المحدد للمسند غير موجود.'); 
+            } else {
+              // رسالة الخطأ التي تظهر لك الآن
+              setError(`لا يمكن تحميل مسند الراوي (خطأ ${err.response.status}). قد يكون المسند فارغًا أو حدث خطأ آخر في الخادم.`);
+            }
+          } else if (err.message?.includes('Network Error')) {
+            setError('خطأ في الشبكة. يرجى التحقق من اتصالك بالخادم.');
+          } else {
+            setError(err.message || 'حدث خطأ غير معروف أثناء تحميل أحاديث المسند');
+          }
+        }
+      }
+      setLoading(false);
     };
     
     fetchData();
-  }, [id, page]);
+  }, [id, searchParams]);
 
-  // عرض سنوات الوفاة للراوي
-  const renderDeathYears = (narrator: Narrator) => {
-    if (!narrator.deathYears || narrator.deathYears.length === 0) {
-      if (narrator.deathYear) {
+  // دالة عرض سنوات الوفاة للراوي
+  const renderDeathYears = (currentNarrator: Narrator) => {
+    if (!currentNarrator.deathYears || currentNarrator.deathYears.length === 0) {
+      if (currentNarrator.deathYear) {
+        const deathYearDisplay = typeof currentNarrator.deathYear === 'number' 
+          ? `${currentNarrator.deathYear} هـ` 
+          : currentNarrator.deathYear;
         return (
           <div className="flex items-center gap-2 text-gray-300">
             <Calendar size={18} />
             <span className="font-semibold">سنة الوفاة:</span> 
-            <span>{narrator.deathYear} هـ</span>
+            <span>{deathYearDisplay}</span>
           </div>
         );
       }
       return null;
     }
 
-    if (narrator.deathYears.length === 1) {
-      const deathYear = narrator.deathYears[0];
+    if (currentNarrator.deathYears.length === 1) {
+      const deathYear = currentNarrator.deathYears[0];
       const displayValue = deathYear.year ? `${deathYear.year} هـ` : deathYear.deathDescription || 'غير محدد';
       return (
         <div className="flex items-center gap-2 text-gray-300">
           <Calendar size={18} />
           <span className="font-semibold">سنة الوفاة:</span> 
           <span>{displayValue}</span>
+          {deathYear.source && <span className="text-xs text-gray-500">({deathYear.source})</span>}
         </div>
       );
     }
@@ -171,14 +180,14 @@ export default function NarratorMusnadPage() {
       <div className="text-gray-300">
         <div className="flex items-center gap-2 mb-2">
           <Clock size={18} />
-          <span className="font-semibold">سنوات الوفاة المحتملة:</span>
+          <span className="font-semibold">سنوات/أحوال الوفاة المحتملة:</span>
         </div>
         <div className="mr-6 space-y-1">
-          {narrator.deathYears.map((deathYear) => {
+          {currentNarrator.deathYears.map((deathYear) => {
             const displayValue = deathYear.year ? `${deathYear.year} هـ` : deathYear.deathDescription || 'غير محدد';
             return (
               <div key={deathYear.id} className="flex items-center gap-2 text-sm">
-                <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                <span className={`inline-block w-2 h-2 rounded-full ${deathYear.isPrimary ? 'bg-emerald-400' : 'bg-gray-500'}`}></span>
                 <span>{displayValue}</span>
                 {deathYear.source && (
                   <span className="text-gray-500 text-xs">({deathYear.source})</span>
@@ -191,13 +200,14 @@ export default function NarratorMusnadPage() {
     );
   };
 
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 py-8 text-gray-100">
         <div className="container mx-auto px-4">
           <div className="text-center py-16">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-400"></div>
-            <p className="mt-4 text-gray-400">جارٍ تحميل المسند...</p>
+            <Loader2 className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-gray-400 mb-4" />
+            <p className="text-gray-400">جارٍ تحميل المسند...</p>
           </div>
         </div>
       </div>
@@ -256,8 +266,6 @@ export default function NarratorMusnadPage() {
                     <span className="font-semibold">اللقب:</span> {narrator.laqab}
                   </p>
                 )}
-                
-                {/* عرض سنوات الوفاة */}
                 {renderDeathYears(narrator)}
               </div>
 
@@ -266,7 +274,6 @@ export default function NarratorMusnadPage() {
               </span>
             </div>
 
-            {/* الإحصائيات */}
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-gray-700/50 rounded-lg">
                 <div className="text-2xl font-bold text-emerald-400">
@@ -279,7 +286,7 @@ export default function NarratorMusnadPage() {
               </div>
               <div className="text-center p-4 bg-gray-700/50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-400">
-                  {narrator._count?.musnadHadiths || 0}
+                  {pagination.total} {/* استخدام pagination.total */}
                 </div>
                 <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
                   <Scroll size={16} />
@@ -289,7 +296,7 @@ export default function NarratorMusnadPage() {
             </div>
           </div>
         </div>
-
+        
         {/* قائمة الأحاديث في المسند */}
         <div className="bg-gray-800 rounded-lg shadow-md border border-gray-700">
           <div className="p-6">
@@ -339,18 +346,15 @@ export default function NarratorMusnadPage() {
                         </p>
                       )}
                       
-                      {/* متن الحديث */}
                       <p className="text-gray-200 leading-relaxed mb-6 rtl border-r-4 border-gray-700 pr-4 py-2">
                         {hadith.matn}
                       </p>
                       
-                      {/* السند */}
                       <div className="mt-4">
                         <h4 className="text-sm font-semibold text-gray-400 mb-2">السند:</h4>
                         <p className="text-gray-400 text-sm">{hadith.chain || hadith.sanad}</p>
                       </div>
                       
-                      {/* درجة الحديث إن وجدت */}
                       {hadith.grade && (
                         <div className="mt-3 text-sm">
                           <span className="font-semibold text-gray-300">الدرجة: </span>
@@ -373,26 +377,28 @@ export default function NarratorMusnadPage() {
                   ))}
                 </div>
 
-                {/* ترقيم الصفحات */}
-                {totalPages > 1 && (
+                {/* ترقيم الصفحات - استخدام useRouter للتنقل */}
+                {pagination.pages > 1 && (
                   <div className="flex justify-center gap-2 mt-8">
-                    <button
-                      onClick={() => setPage(Math.max(1, page - 1))}
-                      disabled={page === 1}
-                      className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
-                    >
-                      السابق
-                    </button>
+                    <Link
+                      href={`/musnad/${id}?page=${Math.max(1, pagination.page - 1)}`}
+                      passHref
+                      legacyBehavior>
+                      <a className={`px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 ${pagination.page === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        السابق
+                      </a>
+                    </Link>
                     <span className="px-4 py-2 text-gray-300">
-                      صفحة {page} من {totalPages}
+                      صفحة {pagination.page} من {pagination.pages}
                     </span>
-                    <button
-                      onClick={() => setPage(Math.min(totalPages, page + 1))}
-                      disabled={page === totalPages}
-                      className="px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
-                    >
-                      التالي
-                    </button>
+                    <Link
+                      href={`/musnad/${id}?page=${Math.min(pagination.pages, pagination.page + 1)}`}
+                      passHref
+                      legacyBehavior>
+                      <a className={`px-4 py-2 border border-gray-700 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 ${pagination.page === pagination.pages ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        التالي
+                      </a>
+                    </Link>
                   </div>
                 )}
               </>

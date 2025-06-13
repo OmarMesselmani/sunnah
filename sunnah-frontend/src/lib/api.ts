@@ -15,7 +15,7 @@ export interface NarratorDeathYear {
   id: string; // يجب أن يكون string ليتوافق مع UUIDs
   year?: number | null;
   deathDescription?: string | null; // إضافة دعم للوصف النصي
-  isPrimary: boolean;
+  isPrimary?: boolean; // جعلها اختيارية
   source?: string;
 }
 
@@ -79,6 +79,8 @@ export interface Hadith {
     reviewedAt: string;
   }>;
   chain?: string; // إضافة حقل chain
+  grade?: string; // إضافة خاصية الدرجة كخاصية اختيارية
+  explanation?: string; // إضافة خاصية الشرح كخاصية اختيارية
 }
 
 export interface NarratorRelation {
@@ -451,7 +453,7 @@ export const getPrimaryDeathYear = (narrator: Narrator): number | null => {
 export const getDeathYearsDisplay = (narrator: Narrator): {
   hasMultiple: boolean;
   primary: string | null;
-  all: Array<{ value: string; isPrimary: boolean; source?: string }>;
+  all: Array<{ value: string; isPrimary?: boolean; source?: string }>;
 } => {
   if (!narrator.deathYears || narrator.deathYears.length === 0) {
     // التوافق مع النظام القديم
@@ -489,7 +491,8 @@ export const getDeathYearsDisplay = (narrator: Narrator): {
     };
   }).filter(entry => entry.value !== 'غير محدد');
 
-  const primaryEntry = processedEntries.find(entry => entry.isPrimary);
+  // البحث عن الإدخال الأساسي، أو استخدام الأول إذا لم يتم العثور على أساسي
+  const primaryEntry = processedEntries.find(entry => entry.isPrimary === true);
   
   return {
     hasMultiple: processedEntries.length > 1,
@@ -503,8 +506,60 @@ export const adaptHadiths = (apiHadiths: any[]): Hadith[] => {
   return apiHadiths.map(hadith => ({
     ...hadith,
     chain: hadith.sanad, // تحويل sanad إلى chain
-    // أي تحويلات أخرى مطلوبة
+    narrators: hadith.narrators?.map((n: any) => ({
+      ...n,
+      narrator: {
+        ...n.narrator,
+        // معالجة سنوات الوفاة للرواة
+        deathYears: n.narrator.deathYears?.map((dy: any) => ({
+          ...dy,
+          isPrimary: dy.isPrimary === undefined ? false : dy.isPrimary
+        }))
+      }
+    })),
+    // إضافة حقول أخرى قد تحتاجها واجهة المستخدم
+    grade: hadith.grade || undefined,
+    explanation: hadith.explanation || undefined
   }));
+};
+
+// 4. إنشاء واجهة لحالة صفحة عرض المسند
+export interface MusnadPageState {
+  narrator: Narrator | null;
+  hadiths: Hadith[];
+  isLoading: boolean;
+  error: string | null;
+  pagination: PaginationInfo;
+}
+
+// 5. إضافة دالة مساعدة للتعامل مع روابط صفحة المسند
+export const getMusnadPageUrl = (narratorId: string, page: number = 1) => {
+  if (!isValidUUID(narratorId)) {
+    throw new Error('معرف الراوي غير صالح');
+  }
+  return `/musnad/${narratorId}?page=${page}`;
+};
+
+// 6. إضافة دالة مساعدة لتنسيق عرض معلومات الراوي في صفحة المسند
+export const formatNarratorInfo = (narrator: Narrator | null): string => {
+  if (!narrator) return '';
+  
+  const parts = [narrator.fullName];
+  
+  if (narrator.kunyah) {
+    parts.push(`(${narrator.kunyah})`);
+  }
+  
+  if (narrator.generation) {
+    parts.push(`- ${narrator.generation}`);
+  }
+  
+  const deathYearDisplay = getDisplayDeathYears(narrator);
+  if (deathYearDisplay !== 'غير محدد') {
+    parts.push(`- ت ${deathYearDisplay}`);
+  }
+  
+  return parts.join(' ');
 };
 
 export default api;
