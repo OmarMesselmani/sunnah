@@ -16,18 +16,33 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { getNarratorById, getNarratorMusnad } from '@/lib/api';
-// استيراد الأنواع المتاحة فقط من API
-import type { 
-  Narrator, 
-  Hadith as APIHadith, 
-  NarratorDeathYear
-} from '@/lib/api';
 
-// تعريف الواجهات الناقصة محلياً
+// واجهات محلية مبسطة
+interface NarratorDeathYear {
+  id: string;
+  year?: number | null;
+  deathDescription?: string | null;
+  source?: string;
+}
+
+interface Narrator {
+  id: string;
+  fullName: string;
+  kunyah?: string;
+  laqab?: string;
+  generation: string;
+  deathYear?: string | number | null;
+  deathYears?: NarratorDeathYear[];
+  _count?: {
+    narratedHadiths: number;
+    musnadHadiths: number;
+  };
+}
+
 interface Source {
   id: string | number;
   name: string;
-  shortName: string;
+  shortName?: string;
 }
 
 interface Book {
@@ -40,29 +55,17 @@ interface Chapter {
   name: string;
 }
 
-interface HadithNarrator {
-  id: string | number;
-  orderInChain: number;
-  hadithId: string | number;
-  narratorId: string | number;
-  narrator: Narrator;
-}
-
-// واجهة Hadith المحلية تحتوي على جميع الحقول التي نستخدمها بما فيها grade
-interface Hadith extends Omit<APIHadith, 'id' | 'source' | 'book' | 'chapter' | 'narrators'> {
+interface Hadith {
   id: string | number;
   hadithNumber: string;
   matn: string;
-  chain: string;
-  grade?: string;  // إضافة حقل grade
+  sanad: string;
+  chain?: string;
+  grade?: string;
   explanation?: string;
-  sourceId: string | number;
   source: Source;
-  bookId?: string | number;
   book?: Book;
-  chapterId?: string | number;
   chapter?: Chapter;
-  narrators: HadithNarrator[];
 }
 
 interface Pagination {
@@ -76,25 +79,6 @@ interface MusnadResponse {
   hadiths: Hadith[];
   pagination: Pagination;
 }
-
-// محول البيانات
-const adaptNarrator = (apiNarrator: any): Narrator => {
-  return {
-    ...apiNarrator,
-    deathYears: apiNarrator.deathYears?.map((dy: any) => ({
-      ...dy,
-      id: dy.id.toString() // تحويل ID من number إلى string
-    }))
-  };
-};
-
-// محول البيانات للأحاديث
-const adaptHadiths = (apiHadiths: any[]): Hadith[] => {
-  return apiHadiths.map(hadith => ({
-    ...hadith,
-    id: hadith.id.toString()
-  }));
-};
 
 // الألوان حسب طبقة الراوي
 const getGenerationColor = (generation: string) => {
@@ -120,23 +104,35 @@ export default function NarratorMusnadPage() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) {
+        setError('معرف الراوي مفقود');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
+        setError('');
         
         // جلب معلومات الراوي
         const narratorData = await getNarratorById(id as string);
-        setNarrator(adaptNarrator(narratorData));
+        setNarrator(narratorData);
         
         // جلب أحاديث المسند
         const musnadResponse = await getNarratorMusnad(id as string, { page, limit: 10 });
-        // تطبيق الواجهة المحلية على الاستجابة
-        setHadiths(adaptHadiths(musnadResponse.hadiths || []));
+        setHadiths(musnadResponse.hadiths || []);
         setTotalPages(musnadResponse.pagination?.pages || 1);
         
-        setLoading(false);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching musnad data:', error);
-        setError('حدث خطأ أثناء تحميل بيانات المسند');
+        if (error.message?.includes('404') || error.response?.status === 404) {
+          setError('الراوي غير موجود');
+        } else if (error.message?.includes('Invalid narrator ID format')) {
+          setError('معرف الراوي غير صالح');
+        } else {
+          setError('حدث خطأ أثناء تحميل بيانات المسند');
+        }
+      } finally {
         setLoading(false);
       }
     };
@@ -147,7 +143,6 @@ export default function NarratorMusnadPage() {
   // عرض سنوات الوفاة للراوي
   const renderDeathYears = (narrator: Narrator) => {
     if (!narrator.deathYears || narrator.deathYears.length === 0) {
-      // التوافق مع النظام القديم
       if (narrator.deathYear) {
         return (
           <div className="flex items-center gap-2 text-gray-300">
@@ -161,11 +156,13 @@ export default function NarratorMusnadPage() {
     }
 
     if (narrator.deathYears.length === 1) {
+      const deathYear = narrator.deathYears[0];
+      const displayValue = deathYear.year ? `${deathYear.year} هـ` : deathYear.deathDescription || 'غير محدد';
       return (
         <div className="flex items-center gap-2 text-gray-300">
           <Calendar size={18} />
           <span className="font-semibold">سنة الوفاة:</span> 
-          <span>{narrator.deathYears[0].year} هـ</span>
+          <span>{displayValue}</span>
         </div>
       );
     }
@@ -177,15 +174,18 @@ export default function NarratorMusnadPage() {
           <span className="font-semibold">سنوات الوفاة المحتملة:</span>
         </div>
         <div className="mr-6 space-y-1">
-          {narrator.deathYears.map((deathYear) => (
-            <div key={deathYear.id} className="flex items-center gap-2 text-sm">
-              <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
-              <span>{deathYear.year} هـ</span>
-              {deathYear.source && (
-                <span className="text-gray-500 text-xs">({deathYear.source})</span>
-              )}
-            </div>
-          ))}
+          {narrator.deathYears.map((deathYear) => {
+            const displayValue = deathYear.year ? `${deathYear.year} هـ` : deathYear.deathDescription || 'غير محدد';
+            return (
+              <div key={deathYear.id} className="flex items-center gap-2 text-sm">
+                <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                <span>{displayValue}</span>
+                {deathYear.source && (
+                  <span className="text-gray-500 text-xs">({deathYear.source})</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -347,7 +347,7 @@ export default function NarratorMusnadPage() {
                       {/* السند */}
                       <div className="mt-4">
                         <h4 className="text-sm font-semibold text-gray-400 mb-2">السند:</h4>
-                        <p className="text-gray-400 text-sm">{hadith.chain}</p>
+                        <p className="text-gray-400 text-sm">{hadith.chain || hadith.sanad}</p>
                       </div>
                       
                       {/* درجة الحديث إن وجدت */}

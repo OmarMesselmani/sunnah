@@ -1148,4 +1148,113 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+// إضافة endpoint للحصول على مسند الراوي
+app.get('/api/narrators/:id/musnad', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+    
+    // التحقق من وجود الراوي أولاً
+    const narrator = await prisma.narrator.findUnique({
+      where: { id }
+    });
+    
+    if (!narrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+    
+    // جلب الأحاديث المسندة لهذا الراوي (التي يرويها عن النبي مباشرة)
+    const hadiths = await prisma.hadith.findMany({
+      where: {
+        musnadSahabiId: id
+      },
+      include: {
+        source: {
+          select: {
+            id: true,
+            name: true,
+            author: true
+          }
+        },
+        book: {
+          select: {
+            id: true,
+            name: true,
+            bookNumber: true
+          }
+        },
+        chapter: {
+          select: {
+            id: true,
+            name: true,
+            chapterNumber: true
+          }
+        },
+        narrators: {
+          include: {
+            narrator: {
+              include: {
+                deathYears: {
+                  orderBy: [
+                    { isPrimary: 'desc' },
+                    { year: 'asc' }
+                  ]
+                }
+              }
+            }
+          },
+          orderBy: {
+            orderInChain: 'asc'
+          }
+        },
+        manualReviews: {
+          orderBy: {
+            reviewedAt: 'desc'
+          }
+        }
+      },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      orderBy: { id: 'asc' }
+    });
+    
+    // عد إجمالي الأحاديث المسندة لهذا الراوي
+    const total = await prisma.hadith.count({
+      where: {
+        musnadSahabiId: id
+      }
+    });
+    
+    // تحويل البيانات لتتناسب مع الواجهة الأمامية
+    const transformedHadiths = hadiths.map(hadith => ({
+      ...hadith,
+      chain: hadith.sanad, // إضافة حقل chain للتوافق مع الواجهة الأمامية
+      grade: undefined, // يمكن إضافة منطق تقييم الحديث هنا لاحقاً
+      explanation: undefined // يمكن إضافة شرح الحديث هنا لاحقاً
+    }));
+    
+    res.json({
+      hadiths: transformedHadiths,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching narrator musnad:', error);
+    res.status(500).json({ 
+      error: 'حدث خطأ في جلب أحاديث المسند',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'خطأ غير معروف') : undefined
+    });
+  }
+});
+
 startServer();
