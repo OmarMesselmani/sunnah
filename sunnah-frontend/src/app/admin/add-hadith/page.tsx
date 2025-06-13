@@ -60,7 +60,6 @@ interface NarratorDeathYearFE { // FE for FrontEnd to avoid conflict if imported
   id: string; 
   year?: number | null;
   deathDescription?: string | null;
-  isPrimary: boolean;
   source?: string;
 }
 
@@ -185,6 +184,12 @@ export default function BatchAddHadithPage() {
 
   const [currentPathIndex, setCurrentPathIndex] = useState<number>(-1);
 
+  // إضافة حالة جديدة لتتبع الراوي المحدد في كل مسار
+  const [selectedNarratorsInPath, setSelectedNarratorsInPath] = useState<{[pathId: string]: string}>({});
+
+  // إضافة متغير حالة جديد لتخزين معرف الراوي المسند إليه لكل حديث
+  const [assignedMusnadNarratorIds, setAssignedMusnadNarratorIds] = useState<{[hadithId: string]: string}>({});
+
   const addHadith = () => {
     if (hadiths.length >= 5) {
       alert('يمكن إضافة 5 أحاديث كحد أقصى في المرة الواحدة');
@@ -288,6 +293,9 @@ export default function BatchAddHadithPage() {
         isAnalyzed: true,
         analysisError: undefined
       });
+
+      // تعيين الراوي الأول كصاحب مسند بشكل تلقائي
+      setTimeout(() => setFirstNarratorAsDefaultMusnad(hadithId), 100);
 
     } catch (error) {
       console.error('❌ خطأ في تحليل السند:', error);
@@ -409,7 +417,7 @@ export default function BatchAddHadithPage() {
   const saveAllHadiths = async () => {
     const readyHadiths = hadiths.filter(h => 
         h.hadithNumber && 
-        h.bookId && // التأكد من وجود معرف الكتاب
+        h.bookId && 
         h.sanad && 
         h.matn && 
         h.isAnalyzed && 
@@ -418,10 +426,15 @@ export default function BatchAddHadithPage() {
         h.analysisResult.paths.length > 0 &&
         h.analysisResult.paths.every(p => p.narrators.every(n => n.matchedNarratorId && n.isConfirmed))
     );
-    if (readyHadiths.length === 0) {
-      alert('لا توجد أحاديث جاهزة للحفظ. تأكد من تعبئة جميع الخانات المطلوبة (بما في ذلك رقم الحديث لتحديد الكتاب) وتحليل السند وتأكيد الرواة.');
-      return;
+    
+    // التحقق من أن جميع الأحاديث لها راوٍ مسند إليه محدد
+    const hadithsWithoutMusnad = readyHadiths.filter(h => !assignedMusnadNarratorIds[h.id]);
+    if (hadithsWithoutMusnad.length > 0) {
+      if (!confirm(`يوجد ${hadithsWithoutMusnad.length} حديث بدون تحديد صاحب المسند. هل تريد المتابعة؟`)) {
+        return;
+      }
     }
+    
     setIsSavingAll(true);
     setSaveProgress({ current: 0, total: readyHadiths.length });
     let savedCount = 0;
@@ -431,7 +444,30 @@ export default function BatchAddHadithPage() {
       try {
         const primaryPath = hadith.analysisResult!.paths[0]; 
         let narratorsData: Array<{ narratorId: string; orderInChain: number; narrationType?: string; }> = [];
+        
+        // استخدام الراوي المسند إليه إذا تم تحديده
         let musnadSahabiId: string | undefined = undefined;
+        
+        if (assignedMusnadNarratorIds[hadith.id]) {
+          // استخراج معرّف الراوي من القيمة المخزنة
+          const pathKey = Object.keys(selectedNarratorsInPath).find(key => key.startsWith(hadith.id));
+          if (pathKey) {
+            const selectedNarratorId = selectedNarratorsInPath[pathKey];
+            const [order, pathIdxStr, nIndexStr, hId] = selectedNarratorId.split('-');
+            const pathIdx = parseInt(pathIdxStr);
+            const nIndex = parseInt(nIndexStr);
+            
+            if (hadith.analysisResult?.paths[pathIdx]?.narrators[nIndex]?.matchedNarratorId) {
+              musnadSahabiId = hadith.analysisResult.paths[pathIdx].narrators[nIndex].matchedNarratorId;
+            }
+          }
+        } else if (primaryPath && primaryPath.narrators.length > 0) {
+          // الاستخدام الافتراضي السابق
+          const sahabiNarrator = primaryPath.narrators.find(n => n.order === 1);
+          if (sahabiNarrator?.matchedNarratorId && isValidUUID(sahabiNarrator.matchedNarratorId)) {
+            musnadSahabiId = sahabiNarrator.matchedNarratorId;
+          }
+        }
 
         if (primaryPath && primaryPath.narrators.length > 0) {
           narratorsData = primaryPath.narrators
@@ -441,20 +477,15 @@ export default function BatchAddHadithPage() {
               orderInChain: n.order,
               narrationType: n.narrationType
             }));
-          
-          const sahabiNarrator = primaryPath.narrators.find(n => n.order === 1);
-          if (sahabiNarrator?.matchedNarratorId && isValidUUID(sahabiNarrator.matchedNarratorId)) {
-            musnadSahabiId = sahabiNarrator.matchedNarratorId;
-          }
         }
         
         const hadithData = {
           sourceId: hadith.sourceId,
-          bookId: hadith.bookId ? Number(hadith.bookId) : undefined, // إضافة معرف الكتاب للبيانات المرسلة
+          bookId: hadith.bookId ? Number(hadith.bookId) : undefined,
           hadithNumber: hadith.hadithNumber,
           sanad: hadith.sanad,
           matn: hadith.matn,
-          musnadSahabiId,
+          musnadSahabiId, // استخدام معرّف الراوي المسند إليه
           narrators: narratorsData,
         };
 
@@ -463,10 +494,12 @@ export default function BatchAddHadithPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(hadithData),
         });
+        
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || `Failed to save hadith ${hadith.hadithNumber}`);
         }
+        
         savedCount++;
         setSaveProgress(prev => ({ ...prev, current: savedCount }));
         setHadiths(prev => prev.filter(h => h.id !== hadith.id));
@@ -666,7 +699,6 @@ export default function BatchAddHadithPage() {
         if (!isNaN(parsedYear) && parsedYear > 0) {
           payload.deathYears = [{
             year: deathYearInput,
-            isPrimary: true
           }];
         }
       }
@@ -797,6 +829,80 @@ export default function BatchAddHadithPage() {
     updateHadith(hadithId, { 
       analysisResult: newAnalysisResult
     });
+  };
+
+  const handleNarratorSelection = (hadithId: string, pathIdx: number, narratorId: string) => {
+    const pathKey = `${hadithId}-${pathIdx}`;
+    
+    // تحديث الراوي المحدد في المسار
+    setSelectedNarratorsInPath(prev => ({
+      ...prev,
+      [pathKey]: narratorId
+    }));
+    
+    // تعيين الراوي كصاحب المسند مباشرة (بدلاً من استخدام زر منفصل)
+    setAssignedMusnadNarratorIds(prev => ({
+      ...prev,
+      [hadithId]: narratorId
+    }));
+  };
+
+  // إضافة دالة لتعيين الراوي كصاحب المسند
+  const assignMusnadNarrator = (hadithId: string, narratorId: string) => {
+    setAssignedMusnadNarratorIds(prev => ({
+      ...prev,
+      [hadithId]: narratorId
+    }));
+    
+    // إظهار رسالة تأكيد للمستخدم
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith) return;
+    
+    const pathKey = Object.keys(selectedNarratorsInPath).find(key => key.startsWith(hadithId));
+    if (!pathKey) return;
+    
+    const selectedNarratorId = selectedNarratorsInPath[pathKey];
+    const [order, pathIdxStr, nIndexStr, hId] = selectedNarratorId.split('-');
+    const pathIdx = parseInt(pathIdxStr);
+    const nIndex = parseInt(nIndexStr);
+    
+    const path = hadith.analysisResult?.paths[pathIdx];
+    if (!path) return;
+    
+    const selectedNarrator = path.narrators[nIndex];
+    if (!selectedNarrator) return;
+
+    alert(`تم تعيين الراوي "${selectedNarrator.name}" كصاحب مسند هذا الحديث.`);
+  };
+
+  // إضافة دالة تعيين الراوي الأول كصاحب مسند افتراضي
+  const setFirstNarratorAsDefaultMusnad = (hadithId: string) => {
+    const hadith = hadiths.find(h => h.id === hadithId);
+    if (!hadith || !hadith.analysisResult || !hadith.analysisResult.paths || hadith.analysisResult.paths.length === 0) return;
+    
+    // البحث عن الراوي الأول في أول طريق
+    const firstPath = hadith.analysisResult.paths[0];
+    if (!firstPath.narrators || firstPath.narrators.length === 0) return;
+    
+    // البحث عن الراوي الذي ترتيبه 1
+    const firstNarrator = firstPath.narrators.find(n => n.order === 1);
+    if (!firstNarrator) return;
+    
+    // تحديد مفتاح الراوي
+    const narratorIndex = firstPath.narrators.indexOf(firstNarrator);
+    const narratorKey = `${firstNarrator.order}-0-${narratorIndex}-${hadithId}`;
+    
+    // تعيين الراوي في المسار
+    setSelectedNarratorsInPath(prev => ({
+      ...prev,
+      [`${hadithId}-0`]: narratorKey
+    }));
+    
+    // تعيين الراوي كصاحب المسند
+    setAssignedMusnadNarratorIds(prev => ({
+      ...prev,
+      [hadithId]: narratorKey
+    }));
   };
 
   return (
@@ -964,6 +1070,8 @@ export default function BatchAddHadithPage() {
                                             placeholder="اسم الراوي"
                                           />
                                           <button onClick={() => removeNarratorFromHadith(hadith.id, pathIdx, nIndex)} className="text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-gray-600" title="حذف الراوي"><X size={14} /></button>
+                                          
+                                          {/* الجزء الذي يعرض بيانات الراوي المطابق أو أزرار البحث */}
                                           {narrator.matchedNarratorId ? (
                                             <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                                               {narrator.isConfirmed ? (
@@ -999,6 +1107,20 @@ export default function BatchAddHadithPage() {
                                               <button onClick={(e) => { e.stopPropagation(); handleShowAddNarratorModal(hadith.id, pathIdx, nIndex); }} className="text-emerald-400 hover:text-emerald-300 p-1 rounded-full hover:bg-gray-600 flex items-center" title="إضافة راوي جديد"><Plus size={16} /></button>
                                             </div>
                                           )}
+        
+                                          {/* تعديل radio box ليكون أكثر وضوحًا */}
+                                          <div className="flex items-center justify-center mr-auto">
+                                            <input
+                                              type="radio"
+                                              name={`narrator-selection-${hadith.id}`}
+                                              checked={assignedMusnadNarratorIds[hadith.id] === `${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}`}
+                                              onChange={() => handleNarratorSelection(hadith.id, pathIdx, `${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}`)}
+                                              className="w-4 h-4 text-green-600 bg-gray-700 border-gray-600 focus:ring-green-500 focus:ring-2"
+                                            />
+                                            {assignedMusnadNarratorIds[hadith.id] === `${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}` && (
+                                              <span className="mr-1 text-xs text-green-400">صاحب المسند</span>
+                                            )}
+                                          </div>
                                         </div>
                                       )}
                                     </Draggable>
@@ -1198,7 +1320,7 @@ export default function BatchAddHadithPage() {
                       <option value="تابعي">تابعي</option>
                       <option value="تابع التابعين">تابع التابعين</option>
                       {generationOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <option key={opt.value} value={opt.label}>{opt.label}</option>
                       ))}
                     </select>
                   </div>

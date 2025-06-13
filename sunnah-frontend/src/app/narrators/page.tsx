@@ -13,7 +13,6 @@ interface NarratorDeathYear {
   id: string; // تم التعديل ليتوافق مع UUID
   year?: number | null; // يمكن أن يكون رقمًا أو null
   deathDescription?: string | null; // إضافة وصف الوفاة
-  isPrimary: boolean;
   source?: string;
 }
 
@@ -179,37 +178,75 @@ export default function NarratorsPage() {
   };
 
   const renderDeathYearsInfo = (narrator: Narrator) => {
-    if (!narrator.deathYears || narrator.deathYears.length === 0) {
-      if (narrator.deathYear) {
+    // حالة deathYears (النظام الجديد)
+    if (narrator.deathYears && narrator.deathYears.length > 0) {
+      // إذا كان للراوي وصف وفاة نصي، عرضه
+
+      // إذا كان هناك سنة واحدة فقط
+      if (narrator.deathYears.length === 1) {
+        const dy = narrator.deathYears[0];
+        // إذا كان هناك وصف نصي عرضه، وإلا عرض الرقم
+        if (dy.deathDescription) {
+          return (
+            <div className="flex items-center gap-1">
+              <Calendar size={14} />
+              <span title={dy.deathDescription}>{truncateText(dy.deathDescription, 20)}</span>
+            </div>
+          );
+        } else if (dy.year) {
+          return (
+            <div className="flex items-center gap-1">
+              <Calendar size={14} />
+              <span>{dy.year} هـ</span>
+            </div>
+          );
+        }
+        return null;
+      }
+
+      // إذا كان هناك أكثر من سنة وفاة واحدة، عرض الأولى منها
+      const firstEntry = narrator.deathYears[0];
+      if (firstEntry.deathDescription) {
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" title={firstEntry.deathDescription}>
             <Calendar size={14} />
-            <span>{narrator.deathYear} هـ</span>
+            <span>{truncateText(firstEntry.deathDescription, 20)}</span>
+            <span className="text-xs text-orange-400">({narrator.deathYears.length}+)</span>
+          </div>
+        );
+      } else if (firstEntry.year) {
+        return (
+          <div className="flex items-center gap-1" title={`سنوات محتملة: ${narrator.deathYears.map(dy => dy.year).filter(Boolean).join('، ')}`}>
+            <Calendar size={14} />
+            <span>{firstEntry.year} هـ</span>
+            <span className="text-xs text-orange-400">({narrator.deathYears.length}+)</span>
           </div>
         );
       }
-      return null;
     }
 
-    if (narrator.deathYears.length === 1) {
+    // حالة deathYear (النظام القديم)
+    if (narrator.deathYear !== null && narrator.deathYear !== undefined) {
       return (
         <div className="flex items-center gap-1">
           <Calendar size={14} />
-          <span>{narrator.deathYears[0].year} هـ</span>
+          <span>
+            {typeof narrator.deathYear === 'number' 
+              ? `${narrator.deathYear} هـ` 
+              : truncateText(narrator.deathYear.toString(), 20)
+            }
+          </span>
         </div>
       );
     }
 
-    const primaryYear = narrator.deathYears.find(dy => dy.isPrimary);
-    const displayYear = primaryYear ? primaryYear.year : narrator.deathYears[0].year;
-    
-    return (
-      <div className="flex items-center gap-1" title={`سنوات محتملة: ${narrator.deathYears.map(dy => dy.year).join('، ')}`}>
-        <Calendar size={14} />
-        <span>{displayYear} هـ</span>
-        <span className="text-xs text-orange-400">({narrator.deathYears.length}+)</span>
-      </div>
-    );
+    return null;
+  };
+
+  // دالة مساعدة لاختصار النص الطويل
+  const truncateText = (text: string | undefined | null, maxLength: number): string => {
+    if (!text) return '';
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
   // تجميع الرواة حسب الطبقة

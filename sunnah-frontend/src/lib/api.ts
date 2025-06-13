@@ -1,3 +1,4 @@
+// File: sunnah-frontend/src/lib/api.ts
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -9,11 +10,11 @@ const api = axios.create({
   },
 });
 
-// Types
+// Types - تحديث واجهة NarratorDeathYear
 export interface NarratorDeathYear {
   id: string; // يجب أن يكون string ليتوافق مع UUIDs
   year?: number | null;
-  deathDescription?: string | null;
+  deathDescription?: string | null; // إضافة دعم للوصف النصي
   isPrimary: boolean;
   source?: string;
 }
@@ -25,7 +26,7 @@ export interface Narrator {
   laqab?: string;
   generation: string;
   deathYear?: string | number | null;
-  deathYears?: NarratorDeathYear[];
+  deathYears?: NarratorDeathYear[];   // استخدام الواجهة المحدثة
   biography?: string;
   translation?: string;
   _count?: {
@@ -379,12 +380,18 @@ export const checkHealth = async () => {
   return response.data;
 };
 
-// Helper functions لسنوات الوفاة
+// Helper functions لسنوات الوفاة - تم تحديثها لدعم deathDescription
 export const getDisplayDeathYears = (narrator: Narrator): string => {
   if (narrator.deathYears && narrator.deathYears.length > 0) {
     const displayEntries = narrator.deathYears.map(dy => {
-      if (dy.year) return `${dy.year} هـ`;
-      if (dy.deathDescription) return dy.deathDescription;
+      // إذا كان هناك سنة رقمية، استخدمها مع "هـ"
+      if (dy.year && typeof dy.year === 'number') {
+        return `${dy.year} هـ`;
+      }
+      // إذا كان هناك وصف نصي، استخدمه
+      if (dy.deathDescription && dy.deathDescription.trim()) {
+        return dy.deathDescription.trim();
+      }
       return null;
     }).filter(Boolean); // إزالة القيم الفارغة
 
@@ -438,6 +445,57 @@ export const getPrimaryDeathYear = (narrator: Narrator): number | null => {
   }
   
   return null; // إذا لم يتم العثور على سنة وفاة رقمية صالحة
+};
+
+// دالة مساعدة جديدة للحصول على تفاصيل سنوات الوفاة للعرض
+export const getDeathYearsDisplay = (narrator: Narrator): {
+  hasMultiple: boolean;
+  primary: string | null;
+  all: Array<{ value: string; isPrimary: boolean; source?: string }>;
+} => {
+  if (!narrator.deathYears || narrator.deathYears.length === 0) {
+    // التوافق مع النظام القديم
+    if (narrator.deathYear) {
+      const value = typeof narrator.deathYear === 'number' 
+        ? `${narrator.deathYear} هـ` 
+        : narrator.deathYear.toString();
+      return {
+        hasMultiple: false,
+        primary: value,
+        all: [{ value, isPrimary: true }]
+      };
+    }
+    return {
+      hasMultiple: false,
+      primary: null,
+      all: []
+    };
+  }
+
+  const processedEntries = narrator.deathYears.map(dy => {
+    let value: string;
+    if (dy.year && typeof dy.year === 'number') {
+      value = `${dy.year} هـ`;
+    } else if (dy.deathDescription && dy.deathDescription.trim()) {
+      value = dy.deathDescription.trim();
+    } else {
+      value = 'غير محدد';
+    }
+    
+    return {
+      value,
+      isPrimary: dy.isPrimary,
+      source: dy.source
+    };
+  }).filter(entry => entry.value !== 'غير محدد');
+
+  const primaryEntry = processedEntries.find(entry => entry.isPrimary);
+  
+  return {
+    hasMultiple: processedEntries.length > 1,
+    primary: primaryEntry?.value || processedEntries[0]?.value || null,
+    all: processedEntries
+  };
 };
 
 // دالة مساعدة لتحويل بيانات الأحاديث في صفحة المسند

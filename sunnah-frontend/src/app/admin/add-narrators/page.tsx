@@ -6,45 +6,40 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, Save, Plus, X, Loader2, Calendar, Check, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-// تعديل الواجهات لتشمل الشيوخ والتلاميذ
+// تعديل واجهة NarratorFormData لتتضمن اللقب والأسماء البديلة
 interface NarratorFormData {
   fullName: string;
   kunyas: string;
-  deathYears: DeathYearEntry[]; // تم التعديل هنا
+  laqab: string;             // إضافة حقل اللقب
+  alternativeNames: string;  // إضافة حقل الأسماء البديلة
+  deathYears: DeathYearEntry[];
   generation: string;
   translation: string;
-  teachers: string[];
-  students: string[];
 }
 
 interface DeathYearEntry {
-  id: string; // لتتبع الإدخالات في الواجهة
-  year: string; // سيظل نصًا في الواجهة للتحكم المرن
+  id: string;
+  year: string;
   description: string;
-  isPrimary: boolean;
 }
 
 export default function AddNarratorsPage() {
   const router = useRouter();
   
-  // بيانات الراوي الجديد
+  // تحديث بيانات الراوي لتشمل الحقول الجديدة
   const [formData, setFormData] = useState<NarratorFormData>({
     fullName: '',
     kunyas: '',
-    deathYears: [{ id: Date.now().toString(), year: '', description: '', isPrimary: true }] as DeathYearEntry[],
+    laqab: '',             // إضافة حقل اللقب
+    alternativeNames: '',  // إضافة حقل الأسماء البديلة
+    deathYears: [{ id: Date.now().toString(), year: '', description: '' }] as DeathYearEntry[],
     generation: '',
     translation: '',
-    teachers: [],
-    students: [],
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string>('');
-  
-  // المتغيرات الجديدة لإدارة شاشة الإضافة
-  const [teacherInput, setTeacherInput] = useState('');
-  const [studentInput, setStudentInput] = useState('');
   
   // قائمة الطبقات
   const generations = [
@@ -100,8 +95,7 @@ export default function AddNarratorsPage() {
         { 
           id: Date.now().toString(), 
           year: '', 
-          description: '', 
-          isPrimary: prev.deathYears.length === 0 // أول واحد يُضاف يكون primary إذا لم يكن هناك شيء
+          description: '' 
         }
       ]
     }));
@@ -112,58 +106,6 @@ export default function AddNarratorsPage() {
     setFormData(prev => ({
       ...prev,
       deathYears: prev.deathYears.filter((_, index) => index !== indexToRemove)
-    }));
-  };
-
-  // إضافة شيخ جديد
-  const addTeacher = () => {
-    if (!teacherInput.trim()) return;
-    
-    if (formData.teachers.includes(teacherInput.trim())) {
-      setSubmitError('هذا الشيخ موجود بالفعل في القائمة');
-      return;
-    }
-    
-    setFormData(prev => ({
-      ...prev,
-      teachers: [...prev.teachers, teacherInput.trim()]
-    }));
-    
-    setTeacherInput('');
-    resetMessages();
-  };
-  
-  // إضافة تلميذ جديد
-  const addStudent = () => {
-    if (!studentInput.trim()) return;
-    
-    if (formData.students.includes(studentInput.trim())) {
-      setSubmitError('هذا التلميذ موجود بالفعل في القائمة');
-      return;
-    }
-    
-    setFormData(prev => ({
-      ...prev,
-      students: [...prev.students, studentInput.trim()]
-    }));
-    
-    setStudentInput('');
-    resetMessages();
-  };
-
-  // حذف شيخ
-  const removeTeacher = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      teachers: prev.teachers.filter((_, i) => i !== index)
-    }));
-  };
-  
-  // حذف تلميذ
-  const removeStudent = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      students: prev.students.filter((_, i) => i !== index)
     }));
   };
 
@@ -183,16 +125,14 @@ export default function AddNarratorsPage() {
       const narratorData = {
         fullName: formData.fullName.trim(),
         kunyas: formData.kunyas.trim() || null,
-        // تعديل هنا لتجهيز deathYears بشكل صحيح
+        laqab: formData.laqab.trim() || null,             // إضافة حقل اللقب
+        alternativeNames: formData.alternativeNames.trim() || null,  // إضافة حقل الأسماء البديلة
         deathYears: formData.deathYears.map(dy => ({
-          year: dy.year.trim(), // أرسل كنص، الخادم سيتعامل معه
-          description: dy.description.trim(),
-          isPrimary: dy.isPrimary 
-        })).filter(dy => dy.year || dy.description), // إزالة الإدخالات الفارغة تمامًا
+          year: dy.year.trim(),
+          description: dy.description.trim()
+        })).filter(dy => dy.year || dy.description),
         generation: formData.generation,
         translation: formData.translation.trim() || null,
-        teachers: formData.teachers,
-        students: formData.students
       };
       
       console.log('🚀 إرسال بيانات الراوي:', narratorData);
@@ -217,15 +157,12 @@ export default function AddNarratorsPage() {
         setFormData({
           fullName: '',
           kunyas: '',
-          deathYears: [{ id: Date.now().toString(), year: '', description: '', isPrimary: true }] as DeathYearEntry[],
+          laqab: '',             // إعادة تعيين حقل اللقب
+          alternativeNames: '',  // إعادة تعيين حقل الأسماء البديلة
+          deathYears: [{ id: Date.now().toString(), year: '', description: '' }] as DeathYearEntry[],
           generation: '',
           translation: '',
-          teachers: [],
-          students: []
         });
-        
-        setTeacherInput('');
-        setStudentInput('');
         
         console.log(`✅ تم إضافة الراوي "${narratorData.fullName}" بنجاح`);
         
@@ -339,7 +276,7 @@ export default function AddNarratorsPage() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block mb-2 text-sm font-medium text-gray-300">
                       الكنى
@@ -355,6 +292,40 @@ export default function AddNarratorsPage() {
                     />
                   </div>
                   
+                  {/* إضافة حقل اللقب هنا */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-300">
+                      اللقب
+                    </label>
+                    <input
+                      type="text"
+                      name="laqab"
+                      value={formData.laqab}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="مثال: الزهري، الحافظ"
+                      dir="rtl"
+                    />
+                  </div>
+                </div>
+                
+                {/* إضافة حقل الأسماء البديلة */}
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-gray-300">
+                    الأسماء البديلة
+                  </label>
+                  <input
+                    type="text"
+                    name="alternativeNames"
+                    value={formData.alternativeNames}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="اسماء أخرى يُعرف بها الراوي، افصل بينها بفواصل"
+                    dir="rtl"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* قسم سنوات الوفاة */}
                   <div>
                     <label className="block mb-2 text-sm font-medium text-gray-300">
@@ -367,7 +338,7 @@ export default function AddNarratorsPage() {
                             <div className="flex-grow">
                               <label htmlFor={`deathYear-year-${index}`} className="text-xs text-gray-400 mb-1 block">السنة (رقم)</label>
                               <input
-                                type="number" // أو text إذا كنت تريد مرونة أكبر في الإدخال ثم التحقق
+                                type="number"
                                 id={`deathYear-year-${index}`}
                                 value={entry.year}
                                 onChange={(e) => handleChange(e, index, 'year')}
@@ -397,7 +368,6 @@ export default function AddNarratorsPage() {
                               </button>
                             )}
                           </div>
-                           {/* يمكنك إضافة خيار لجعلها isPrimary إذا أردت */}
                         </div>
                       ))}
                       
@@ -430,103 +400,6 @@ export default function AddNarratorsPage() {
                       ))}
                     </select>
                   </div>
-                </div>
-              </div>
-              
-              {/* قسم الشيوخ والتلاميذ */}
-              <div className="space-y-6 pt-4 border-t border-gray-700">
-                <h3 className="text-lg font-medium text-white">الشيوخ والتلاميذ (اختياري)</h3>
-                
-                {/* قسم الشيوخ */}
-                <div className="space-y-4">
-                  <h4 className="text-md font-medium text-gray-300">الشيوخ</h4>
-                  
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={teacherInput}
-                      onChange={(e) => setTeacherInput(e.target.value)}
-                      placeholder="اسم الشيخ..."
-                      className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                      dir="rtl"
-                    />
-                    <button
-                      type="button"
-                      onClick={addTeacher}
-                      disabled={!teacherInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      <Plus size={20} />
-                    </button>
-                  </div>
-                  
-                  {formData.teachers.length > 0 ? (
-                    <ul className="space-y-1">
-                      {formData.teachers.map((teacher, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center justify-between bg-gray-700 px-3 py-2 rounded-lg"
-                        >
-                          <span>{teacher}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeTeacher(index)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            <X size={16} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-400">لم تتم إضافة أي شيوخ بعد</p>
-                  )}
-                </div>
-                
-                {/* قسم التلاميذ */}
-                <div className="space-y-4">
-                  <h4 className="text-md font-medium text-gray-300">التلاميذ</h4>
-                  
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={studentInput}
-                      onChange={(e) => setStudentInput(e.target.value)}
-                      placeholder="اسم التلميذ..."
-                      className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500"
-                      dir="rtl"
-                    />
-                    <button
-                      type="button"
-                      onClick={addStudent}
-                      disabled={!studentInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      <Plus size={20} />
-                    </button>
-                  </div>
-                  
-                  {formData.students.length > 0 ? (
-                    <ul className="space-y-1">
-                      {formData.students.map((student, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center justify-between bg-gray-700 px-3 py-2 rounded-lg"
-                        >
-                          <span>{student}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeStudent(index)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            <X size={16} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-400">لم تتم إضافة أي تلاميذ بعد</p>
-                  )}
                 </div>
               </div>
               
@@ -569,14 +442,14 @@ export default function AddNarratorsPage() {
           </div>
         </div>
         
-        {/* نصائح مفيدة */}
+        {/* نصائح مفيدة - تم تعديلها لإزالة الإشارة للشيوخ والتلاميذ */}
         <div className="mt-8 bg-blue-900/20 border border-blue-800 rounded-lg p-4">
           <h3 className="text-blue-400 font-medium mb-2">💡 نصائح لإضافة الرواة:</h3>
           <ul className="text-sm text-gray-300 space-y-1">
             <li>• تأكد من كتابة الاسم الكامل بالشكل الصحيح</li>
             <li>• يمكن إضافة عدة سنوات محتملة للوفاة إذا كان هناك خلاف في المصادر</li>
             <li>• الطبقة مهمة لتصنيف الراوي زمنياً</li>
-            <li>• الترجمة والشيوخ والتلاميذ اختيارية ويمكن إضافتها لاحقاً</li>
+            <li>• الترجمة اختيارية ويمكن إضافتها لاحقاً</li>
           </ul>
         </div>
       </div>

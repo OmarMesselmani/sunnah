@@ -26,7 +26,6 @@ interface NarratorDeathYear {
   id: string; // أو number إذا كان ID من قاعدة البيانات رقمًا
   year?: number | null;
   deathDescription?: string | null;
-  isPrimary: boolean;
   source?: string;
 }
 
@@ -170,19 +169,19 @@ export default function NarratorDetailPage() {
     }
   };
 
-  // تعديل دالة renderDeathYears لعرض سنوات الوفاة (رقمية أو نصية)
+  // تعديل دالة renderDeathYears لتعمل بدون خاصية isPrimary
   const renderDeathYears = (narrator: Narrator) => {
     // أولاً، تحقق من deathYears الجديدة
     if (narrator.deathYears && narrator.deathYears.length > 0) {
-      const primaryDeathInfo = narrator.deathYears.find(dy => dy.isPrimary);
-      const otherDeathInfo = narrator.deathYears.filter(dy => !dy.isPrimary);
-
+      // الآن لن نبحث عن سنة وفاة أساسية، سنقوم بعرض جميع سنوات الوفاة بالتساوي
+      
       const displayValue = (dy: NarratorDeathYear) => {
         if (dy.year) return `${dy.year} هـ`;
         if (dy.deathDescription) return dy.deathDescription;
         return 'غير محدد';
       };
 
+      // إذا كانت هناك سنة وفاة واحدة فقط
       if (narrator.deathYears.length === 1) {
         const singleEntry = narrator.deathYears[0];
         return (
@@ -197,6 +196,7 @@ export default function NarratorDetailPage() {
         );
       }
 
+      // إذا كانت هناك عدة سنوات وفاة
       return (
         <div className="text-gray-300">
           <div className="flex items-center gap-2 mb-2">
@@ -204,16 +204,8 @@ export default function NarratorDetailPage() {
             <span className="font-semibold">سنوات/أحوال الوفاة المحتملة:</span>
           </div>
           <div className="mr-6 space-y-1">
-            {primaryDeathInfo && (
-              <div key={primaryDeathInfo.id} className="flex items-center gap-2 text-sm font-medium">
-                <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-400 ring-1 ring-blue-300"></span>
-                <span>{displayValue(primaryDeathInfo)} (الأساسي)</span>
-                {primaryDeathInfo.source && (
-                  <span className="text-gray-500 text-xs">({primaryDeathInfo.source})</span>
-                )}
-              </div>
-            )}
-            {otherDeathInfo.map((deathYear) => (
+            {/* عرض كل سنوات الوفاة بنفس التنسيق (دون تمييز سنة أساسية) */}
+            {narrator.deathYears.map((deathYear) => (
               <div key={deathYear.id} className="flex items-center gap-2 text-sm">
                 <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
                 <span>{displayValue(deathYear)}</span>
@@ -228,12 +220,17 @@ export default function NarratorDetailPage() {
     }
     
     // التوافق مع النظام القديم إذا كان deathYear موجودًا (قد يكون رقمًا أو نصًا)
-    if (narrator.deathYear) {
+    if (narrator.deathYear !== null && narrator.deathYear !== undefined) {
       return (
         <div className="flex items-center gap-2 text-gray-300">
           <Calendar size={18} />
           <span className="font-semibold">الوفاة:</span> 
-          <span>{typeof narrator.deathYear === 'number' ? `${narrator.deathYear} هـ` : narrator.deathYear}</span>
+          <span>
+            {typeof narrator.deathYear === 'number' 
+              ? `${narrator.deathYear} هـ` 
+              : narrator.deathYear // عرض النص كما هو
+            }
+          </span>
         </div>
       );
     }
@@ -423,6 +420,17 @@ export default function NarratorDetailPage() {
                 {narrator.fullName}
               </h1>
               
+              {/* إضافة زر المسند هنا مباشرة تحت اسم الراوي */}
+              {narrator._count && narrator._count.musnadHadiths > 0 && (
+                <Link
+                  href={`/musnad/${narrator.id}`}
+                  className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                >
+                  <Scroll size={16} />
+                  عرض المسند ({narrator._count.musnadHadiths} حديث)
+                </Link>
+              )}
+              
               <div className="space-y-2 mb-4">
                 {narrator.kunyah && (
                   <p className="text-gray-300">
@@ -435,7 +443,6 @@ export default function NarratorDetailPage() {
                   </p>
                 )}
                 
-                {/* عرض سنوات الوفاة المحدثة */}
                 {renderDeathYears(narrator)}
               </div>
 
@@ -444,29 +451,47 @@ export default function NarratorDetailPage() {
               </span>
             </div>
 
-            {/* الإحصائيات */}
+            {/* تعديل الإحصائيات - إضافة التحقق من وجود narrator._count */}
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center p-4 bg-gray-700/50 rounded-lg">
                 <div className="text-2xl font-bold text-emerald-400">
-                  {narrator._count?.narratedHadiths || 0}
+                  {(narrator._count && narrator._count.narratedHadiths) || 0}
                 </div>
                 <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
                   <Book size={16} />
                   حديث يرويه
                 </div>
               </div>
-              <div className="text-center p-4 bg-gray-700/50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-400">
-                  {narrator._count?.musnadHadiths || 0}
+              
+              {/* عرض مربع المسند فقط إذا كان له أحاديث في المسند */}
+              {narrator._count && narrator._count.musnadHadiths > 0 && (
+                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-400">
+                    {narrator._count.musnadHadiths}
+                  </div>
+                  <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
+                    <Scroll size={16} />
+                    في مسنده
+                  </div>
                 </div>
-                <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
-                  <Scroll size={16} />
-                  في مسنده
+              )}
+              
+              {/* إذا لم يكن للراوي مسند، سنعرض شيء آخر في المكان الثاني */}
+              {(!narrator._count || !narrator._count.musnadHadiths) && (
+                <div className="text-center p-4 bg-gray-700/50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-400">
+                    {narrator.generation === 'صحابي' ? 'صحابي' : (narrator.generation || '-')}
+                  </div>
+                  <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
+                    <User size={16} />
+                    الطبقة
+                  </div>
                 </div>
-              </div>
+              )}
+              
               <div className="text-center p-4 bg-gray-700/50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-400">
-                  {narrator._count?.teachersRelation || 0}
+                  {(narrator._count && narrator._count.teachersRelation) || 0}
                 </div>
                 <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
                   <Users size={16} />
@@ -475,7 +500,7 @@ export default function NarratorDetailPage() {
               </div>
               <div className="text-center p-4 bg-gray-700/50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-400">
-                  {narrator._count?.studentsRelation || 0}
+                  {(narrator._count && narrator._count.studentsRelation) || 0}
                 </div>
                 <div className="text-sm text-gray-300 flex items-center justify-center gap-1">
                   <Users size={16} />
@@ -636,17 +661,6 @@ export default function NarratorDetailPage() {
             )}
           </div>
         </div>
-
-        {/* أضف هذا الزر تحت بيانات الراوي */}
-        {narrator._count?.musnadHadiths && narrator._count.musnadHadiths > 0 && (
-          <Link
-            href={`/musnad/${narrator.id}`}
-            className="inline-flex items-center gap-2 mt-4 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Scroll size={18} />
-            عرض المسند ({narrator._count.musnadHadiths} حديث)
-          </Link>
-        )}
       </div>
     </div>
   );
