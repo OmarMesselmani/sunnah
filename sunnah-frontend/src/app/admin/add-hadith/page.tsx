@@ -2,16 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  Save, 
-  Search, 
-  Brain, 
-  ChevronLeft, 
+import {
+  Save,
+  Search,
+  Brain,
+  ChevronLeft,
   AlertCircle,
   Loader2,
   Plus,
   X,
-  Copy,
   ChevronDown,
   ChevronUp,
   UserPlus,
@@ -22,12 +21,12 @@ import {
   AlertTriangle,
   Check
 } from 'lucide-react';
-import { 
-  analyzeIsnad, 
-  ExtractedNarrator, 
+import {
+  analyzeIsnad,
+  ExtractedNarrator,
   AnalyzedIsnadWithPaths,
   NarrationPath
-} from '@/lib/gemini-api'; 
+} from '@/lib/gemini-api';
 import { getNarrators, isValidUUID, searchNarratorsByName } from '@/lib/api';
 import {
   DragDropContext,
@@ -43,7 +42,7 @@ import { getBooksBySourceId, findBookByHadithNumber, HadithBook } from '@/lib/ha
 
 // 2. إضافة حقل bookId في واجهة HadithEntry
 interface HadithEntry {
-  id: string; 
+  id: string;
   sourceId: number;
   bookId?: number | string; // تم إضافة معرف الكتاب
   hadithNumber: string;
@@ -53,11 +52,12 @@ interface HadithEntry {
   isAnalyzed: boolean;
   isExpanded: boolean;
   analysisError?: string;
+  hadithType: 'marfu' | 'mawquf' | 'maqtu'; // إضافة نوع الحديث
 }
 
 // تعريف الواجهة المحدث لـ NarratorDeathYear (إذا لم تكن مستوردة)
 interface NarratorDeathYearFE { // FE for FrontEnd to avoid conflict if imported
-  id: string; 
+  id: string;
   year?: number | null;
   deathDescription?: string | null;
   source?: string;
@@ -149,14 +149,15 @@ export default function BatchAddHadithPage() {
       matn: '',
       analysisResult: undefined,
       isAnalyzed: false,
-      isExpanded: true
+      isExpanded: true,
+      hadithType: 'marfu' // القيمة الافتراضية
     }
   ]);
 
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0 });
-  
+
   const [showManualNarratorModal, setShowManualNarratorModal] = useState(false);
   const [narratorSearch, setNarratorSearch] = useState('');
   const [narratorSearchResults, setNarratorSearchResults] = useState<Narrator[]>([]);
@@ -164,7 +165,7 @@ export default function BatchAddHadithPage() {
   const [narratorOrder, setNarratorOrder] = useState(1);
 
   const [currentHadithId, setCurrentHadithId] = useState<string | null>(null);
-  
+
   const [showAddNarratorModal, setShowAddNarratorModal] = useState(false);
   const [newNarratorData, setNewNarratorData] = useState<NewNarratorData>({
     fullName: '',
@@ -204,11 +205,12 @@ export default function BatchAddHadithPage() {
       matn: '',
       analysisResult: undefined,
       isAnalyzed: false,
-      isExpanded: true
+      isExpanded: true,
+      hadithType: 'marfu' // القيمة الافتراضية للنوع
     };
     setHadiths([...hadiths, newHadith]);
   };
-  
+
   // 3. تحديث دالة updateHadith لتحديد الكتاب تلقائياً
   const updateHadith = (id: string, updates: Partial<HadithEntry>) => {
     setHadiths(prevHadiths => prevHadiths.map(h => {
@@ -220,7 +222,7 @@ export default function BatchAddHadithPage() {
           const book = findBookByHadithNumber(updatedHadith.sourceId, updatedHadith.hadithNumber);
           updatedHadith.bookId = book ? book.id : ''; // تحديث معرف الكتاب
         }
-        
+
         return updatedHadith;
       }
       return h;
@@ -230,24 +232,24 @@ export default function BatchAddHadithPage() {
   const analyzeSingleHadith = async (hadithId: string) => {
     const hadith = hadiths.find(h => h.id === hadithId);
     if (!hadith || !hadith.sanad) return;
-    
-    updateHadith(hadithId, { 
-      analysisError: '', 
-      isAnalyzed: false, 
-      analysisResult: undefined 
+
+    updateHadith(hadithId, {
+      analysisError: '',
+      isAnalyzed: false,
+      analysisResult: undefined
     });
 
     try {
       const analysisData: AnalyzedIsnadWithPaths = await analyzeIsnad(hadith.sanad);
-      
+
       if (!analysisData.paths || analysisData.paths.length === 0) {
-        updateHadith(hadithId, { 
+        updateHadith(hadithId, {
           analysisError: 'لم يتم العثور على أي طرق للسند بعد التحليل.',
           isAnalyzed: false
         });
         return;
       }
-      
+
       const updatedPathsPromises = analysisData.paths.map(async (path) => {
         const matchedNarratorsInPath = await Promise.all(
           path.narrators.map(async (narrator) => {
@@ -261,7 +263,7 @@ export default function BatchAddHadithPage() {
                     ...narrator,
                     matchedNarratorId: match.id,
                     matchedNarratorName: match.fullName,
-                    isConfirmed: true, 
+                    isConfirmed: true,
                     generation: match.generation,
                     translation: match.translation
                   };
@@ -270,14 +272,14 @@ export default function BatchAddHadithPage() {
                 console.error(`Error searching narrator "${narrator.name}" with query "${query}":`, error);
               }
             }
-            return narrator; 
+            return narrator;
           })
         );
         return { ...path, narrators: matchedNarratorsInPath };
       });
 
       const resolvedUpdatedPaths = await Promise.all(updatedPathsPromises);
-      
+
       let finalPaths = resolvedUpdatedPaths;
       if (finalPaths.length === 1) {
         finalPaths[0].pathName = "السند";
@@ -287,7 +289,7 @@ export default function BatchAddHadithPage() {
           pathName: p.pathName || `الطريق ${idx + 1}`
         }));
       }
-      
+
       updateHadith(hadithId, {
         analysisResult: { paths: finalPaths },
         isAnalyzed: true,
@@ -322,7 +324,7 @@ export default function BatchAddHadithPage() {
   };
 
   const updateNarratorInHadith = (
-    hadithId: string, 
+    hadithId: string,
     pathIndex: number,
     narratorIndexInPath: number,
     updates: Partial<ExtractedNarrator>
@@ -330,11 +332,11 @@ export default function BatchAddHadithPage() {
     setHadiths(prevHadiths => prevHadiths.map(h => {
       if (h.id === hadithId && h.analysisResult && h.analysisResult.paths[pathIndex]) {
         const newAnalysisResult = JSON.parse(JSON.stringify(h.analysisResult)) as AnalyzedIsnadWithPaths;
-        
+
         if (newAnalysisResult.paths[pathIndex].narrators[narratorIndexInPath]) {
-          newAnalysisResult.paths[pathIndex].narrators[narratorIndexInPath] = { 
-            ...newAnalysisResult.paths[pathIndex].narrators[narratorIndexInPath], 
-            ...updates 
+          newAnalysisResult.paths[pathIndex].narrators[narratorIndexInPath] = {
+            ...newAnalysisResult.paths[pathIndex].narrators[narratorIndexInPath],
+            ...updates
           };
           if (updates.name || updates.matchedNarratorId) {
             if (newAnalysisResult.paths.length > 1) {
@@ -362,13 +364,13 @@ export default function BatchAddHadithPage() {
     setHadiths(prevHadiths => prevHadiths.map(h => {
       if (h.id === hadithId && h.analysisResult && h.analysisResult.paths[pathIndex]) {
         const newAnalysisResult = JSON.parse(JSON.stringify(h.analysisResult)) as AnalyzedIsnadWithPaths;
-        
+
         let narratorsInPath = newAnalysisResult.paths[pathIndex].narrators;
         narratorsInPath.splice(narratorIndexInPath, 1);
-        
+
         newAnalysisResult.paths[pathIndex].narrators = narratorsInPath.map((narrator, idx) => ({
           ...narrator,
-          order: idx + 1 
+          order: idx + 1
         }));
 
         if (newAnalysisResult.paths.length > 1) {
@@ -387,8 +389,8 @@ export default function BatchAddHadithPage() {
             newAnalysisResult.paths[0].narrators.forEach(n => n.isDuplicateAcrossPaths = false);
         }
 
-        return { 
-          ...h, 
+        return {
+          ...h,
           analysisResult: newAnalysisResult,
           isAnalyzed: newAnalysisResult.paths.some(p => p.narrators.length > 0)
         };
@@ -397,36 +399,22 @@ export default function BatchAddHadithPage() {
     }));
   };
 
-  const duplicateHadith = (hadithId: string) => {
-    if (hadiths.length >= 5) {
-      alert('يمكن إضافة 5 أحاديث كحد أقصى');
-      return;
-    }
-    const hadith = hadiths.find(h => h.id === hadithId);
-    if (!hadith) return;
-    const newHadith: HadithEntry = {
-      ...JSON.parse(JSON.stringify(hadith)),
-      id: Date.now().toString(),
-      hadithNumber: '',
-      isExpanded: true
-    };
-    setHadiths(prevHadiths => [...prevHadiths, newHadith]);
-  };
+  // Removed duplicateHadith function
 
   // 5. تحديث دالة الحفظ
   const saveAllHadiths = async () => {
-    const readyHadiths = hadiths.filter(h => 
-        h.hadithNumber && 
-        h.bookId && 
-        h.sanad && 
-        h.matn && 
-        h.isAnalyzed && 
-        h.analysisResult && 
-        h.analysisResult.paths && 
+    const readyHadiths = hadiths.filter(h =>
+        h.hadithNumber &&
+        h.bookId &&
+        h.sanad &&
+        h.matn &&
+        h.isAnalyzed &&
+        h.analysisResult &&
+        h.analysisResult.paths &&
         h.analysisResult.paths.length > 0 &&
         h.analysisResult.paths.every(p => p.narrators.every(n => n.matchedNarratorId && n.isConfirmed))
     );
-    
+
     // التحقق من أن جميع الأحاديث لها راوٍ مسند إليه محدد
     const hadithsWithoutMusnad = readyHadiths.filter(h => !assignedMusnadNarratorIds[h.id]);
     if (hadithsWithoutMusnad.length > 0) {
@@ -434,7 +422,7 @@ export default function BatchAddHadithPage() {
         return;
       }
     }
-    
+
     setIsSavingAll(true);
     setSaveProgress({ current: 0, total: readyHadiths.length });
     let savedCount = 0;
@@ -442,12 +430,12 @@ export default function BatchAddHadithPage() {
 
     for (const hadith of readyHadiths) {
       try {
-        const primaryPath = hadith.analysisResult!.paths[0]; 
+        const primaryPath = hadith.analysisResult!.paths[0];
         let narratorsData: Array<{ narratorId: string; orderInChain: number; narrationType?: string; }> = [];
-        
+
         // استخدام الراوي المسند إليه إذا تم تحديده
         let musnadSahabiId: string | undefined = undefined;
-        
+
         if (assignedMusnadNarratorIds[hadith.id]) {
           // استخراج معرّف الراوي من القيمة المخزنة
           const pathKey = Object.keys(selectedNarratorsInPath).find(key => key.startsWith(hadith.id));
@@ -456,7 +444,7 @@ export default function BatchAddHadithPage() {
             const [order, pathIdxStr, nIndexStr, hId] = selectedNarratorId.split('-');
             const pathIdx = parseInt(pathIdxStr);
             const nIndex = parseInt(nIndexStr);
-            
+
             if (hadith.analysisResult?.paths[pathIdx]?.narrators[nIndex]?.matchedNarratorId) {
               musnadSahabiId = hadith.analysisResult.paths[pathIdx].narrators[nIndex].matchedNarratorId;
             }
@@ -478,7 +466,7 @@ export default function BatchAddHadithPage() {
               narrationType: n.narrationType
             }));
         }
-        
+
         const hadithData = {
           sourceId: hadith.sourceId,
           bookId: hadith.bookId ? Number(hadith.bookId) : undefined,
@@ -487,6 +475,7 @@ export default function BatchAddHadithPage() {
           matn: hadith.matn,
           musnadSahabiId, // استخدام معرّف الراوي المسند إليه
           narrators: narratorsData,
+          hadithType: hadith.hadithType, // إضافة نوع الحديث
         };
 
         const response = await fetch('http://localhost:5000/api/hadiths', {
@@ -494,12 +483,12 @@ export default function BatchAddHadithPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(hadithData),
         });
-        
+
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error || `Failed to save hadith ${hadith.hadithNumber}`);
         }
-        
+
         savedCount++;
         setSaveProgress(prev => ({ ...prev, current: savedCount }));
         setHadiths(prev => prev.filter(h => h.id !== hadith.id));
@@ -518,7 +507,7 @@ export default function BatchAddHadithPage() {
         alert('لم يتم حفظ أي حديث. الرجاء مراجعة الأخطاء.');
     }
 
-    if (hadiths.filter(h => h.id !== '').length === 0) { 
+    if (hadiths.filter(h => h.id !== '').length === 0) {
         setHadiths([{
             id: Date.now().toString(),
             sourceId: 1,
@@ -528,7 +517,8 @@ export default function BatchAddHadithPage() {
             matn: '',
             analysisResult: undefined,
             isAnalyzed: false,
-            isExpanded: true
+            isExpanded: true,
+            hadithType: 'marfu' // إعادة القيمة الافتراضية
         }]);
     }
   };
@@ -558,7 +548,8 @@ export default function BatchAddHadithPage() {
           matn: '',
           analysisResult: undefined,
           isAnalyzed: false,
-          isExpanded: true
+          isExpanded: true,
+          hadithType: 'marfu' // إضافة القيمة الافتراضية
         }];
       }
       return newList;
@@ -572,7 +563,7 @@ export default function BatchAddHadithPage() {
         return;
       }
       try {
-        const result = await searchNarratorsByName(narratorSearch); 
+        const result = await searchNarratorsByName(narratorSearch);
         setNarratorSearchResults(result.narrators || []);
       } catch (error) {
         console.error('Error searching narrators:', error);
@@ -591,7 +582,7 @@ export default function BatchAddHadithPage() {
   const handleAddNarratorToChain = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedNarrator || !currentHadithId) return;
-  
+
     setHadiths(prevHadiths => prevHadiths.map(h => {
       if (h.id === currentHadithId) {
         const newExtractedNarrator: ExtractedNarrator = {
@@ -602,11 +593,11 @@ export default function BatchAddHadithPage() {
           isConfirmed: true,
           generation: selectedNarrator.generation,
           translation: selectedNarrator.translation,
-          isDuplicateAcrossPaths: false 
+          isDuplicateAcrossPaths: false
         };
-  
+
         let updatedAnalysisResult: AnalyzedIsnadWithPaths;
-  
+
         if (!h.analysisResult || !h.analysisResult.paths || h.analysisResult.paths.length === 0) {
           updatedAnalysisResult = {
             paths: [{
@@ -616,8 +607,8 @@ export default function BatchAddHadithPage() {
           };
         } else {
           updatedAnalysisResult = JSON.parse(JSON.stringify(h.analysisResult));
-          const targetPathIndex = 0; 
-          
+          const targetPathIndex = 0;
+
           if (!updatedAnalysisResult.paths[targetPathIndex]) {
             updatedAnalysisResult.paths[targetPathIndex] = { pathName: `الطريق ${targetPathIndex + 1}`, narrators: [] };
           }
@@ -625,7 +616,7 @@ export default function BatchAddHadithPage() {
           narratorsInTargetPath.push(newExtractedNarrator);
           narratorsInTargetPath.sort((a, b) => a.order - b.order);
           updatedAnalysisResult.paths[targetPathIndex].narrators = narratorsInTargetPath.map((n, idx) => ({ ...n, order: idx + 1 }));
-          
+
           if (updatedAnalysisResult.paths.length > 1) {
             const allNarratorNames = new Map<string, number>();
             updatedAnalysisResult.paths.forEach(p => {
@@ -640,10 +631,10 @@ export default function BatchAddHadithPage() {
             });
           }
         }
-        
+
         setSelectedNarrator(null);
         setNarratorSearch('');
-        setNarratorOrder(1); 
+        setNarratorOrder(1);
         setShowManualNarratorModal(false);
         setCurrentHadithId(null);
 
@@ -661,7 +652,7 @@ export default function BatchAddHadithPage() {
     const hadith = hadiths.find(h => h.id === hadithId);
     if (!hadith || !hadith.analysisResult || !hadith.analysisResult.paths[pathIndex]) return;
     const narrator = hadith.analysisResult.paths[pathIndex].narrators[narratorIndexInPath];
-    
+
     setCurrentHadithId(hadithId);
     setCurrentPathIndex(pathIndex);
     setCurrentNarratorIndex(narratorIndexInPath);
@@ -677,7 +668,7 @@ export default function BatchAddHadithPage() {
 
   const handleAddNewNarratorToDB = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     setIsAddingNarrator(true);
     try {
       const payload: any = {
@@ -718,7 +709,7 @@ export default function BatchAddHadithPage() {
 
       const result = await response.json();
       const newNarrator = result.narrator || result;
-      
+
       if (currentHadithId && currentPathIndex !== -1 && currentNarratorIndex !== -1) {
         updateNarratorInHadith(currentHadithId, currentPathIndex, currentNarratorIndex, {
           matchedNarratorId: newNarrator.id,
@@ -742,7 +733,7 @@ export default function BatchAddHadithPage() {
       setIsAddingNarrator(false);
     }
   };
-  
+
   const handleSearchNarrator = (hadithId: string, pathIndex: number, narratorIndexInPath: number) => {
     const hadith = hadiths.find(h => h.id === hadithId);
     if (!hadith || !hadith.analysisResult || !hadith.analysisResult.paths[pathIndex]) return;
@@ -751,7 +742,7 @@ export default function BatchAddHadithPage() {
     setCurrentHadithId(hadithId);
     setCurrentPathIndex(pathIndex);
     setSearchingNarratorIndex(narratorIndexInPath);
-    setSearchQuery(narrator.name); 
+    setSearchQuery(narrator.name);
     setSearchResults([]);
     setShowSearchModal(true);
     performSearch(narrator.name);
@@ -764,7 +755,7 @@ export default function BatchAddHadithPage() {
     }
     setIsSearching(true);
     try {
-      const result = await getNarrators({ search: query, limit: 10 }); 
+      const result = await getNarrators({ search: query, limit: 10 });
       setSearchResults(result.narrators || []);
     } catch (error) {
       console.error('Error searching narrators:', error);
@@ -822,24 +813,24 @@ export default function BatchAddHadithPage() {
     items.splice(result.destination.index, 0, reorderedItem);
 
     const updatedNarratorsInPath = items.map((item, index) => ({ ...item, order: index + 1 }));
-    
+
     const newAnalysisResult = JSON.parse(JSON.stringify(hadith.analysisResult)) as AnalyzedIsnadWithPaths;
     newAnalysisResult.paths[pathIndex].narrators = updatedNarratorsInPath;
-    
-    updateHadith(hadithId, { 
+
+    updateHadith(hadithId, {
       analysisResult: newAnalysisResult
     });
   };
 
   const handleNarratorSelection = (hadithId: string, pathIdx: number, narratorId: string) => {
     const pathKey = `${hadithId}-${pathIdx}`;
-    
+
     // تحديث الراوي المحدد في المسار
     setSelectedNarratorsInPath(prev => ({
       ...prev,
       [pathKey]: narratorId
     }));
-    
+
     // تعيين الراوي كصاحب المسند مباشرة (بدلاً من استخدام زر منفصل)
     setAssignedMusnadNarratorIds(prev => ({
       ...prev,
@@ -853,22 +844,22 @@ export default function BatchAddHadithPage() {
       ...prev,
       [hadithId]: narratorId
     }));
-    
+
     // إظهار رسالة تأكيد للمستخدم
     const hadith = hadiths.find(h => h.id === hadithId);
     if (!hadith) return;
-    
+
     const pathKey = Object.keys(selectedNarratorsInPath).find(key => key.startsWith(hadithId));
     if (!pathKey) return;
-    
+
     const selectedNarratorId = selectedNarratorsInPath[pathKey];
     const [order, pathIdxStr, nIndexStr, hId] = selectedNarratorId.split('-');
     const pathIdx = parseInt(pathIdxStr);
     const nIndex = parseInt(nIndexStr);
-    
+
     const path = hadith.analysisResult?.paths[pathIdx];
     if (!path) return;
-    
+
     const selectedNarrator = path.narrators[nIndex];
     if (!selectedNarrator) return;
 
@@ -879,25 +870,25 @@ export default function BatchAddHadithPage() {
   const setFirstNarratorAsDefaultMusnad = (hadithId: string) => {
     const hadith = hadiths.find(h => h.id === hadithId);
     if (!hadith || !hadith.analysisResult || !hadith.analysisResult.paths || hadith.analysisResult.paths.length === 0) return;
-    
+
     // البحث عن الراوي الأول في أول طريق
     const firstPath = hadith.analysisResult.paths[0];
     if (!firstPath.narrators || firstPath.narrators.length === 0) return;
-    
+
     // البحث عن الراوي الذي ترتيبه 1
     const firstNarrator = firstPath.narrators.find(n => n.order === 1);
     if (!firstNarrator) return;
-    
+
     // تحديد مفتاح الراوي
     const narratorIndex = firstPath.narrators.indexOf(firstNarrator);
     const narratorKey = `${firstNarrator.order}-0-${narratorIndex}-${hadithId}`;
-    
+
     // تعيين الراوي في المسار
     setSelectedNarratorsInPath(prev => ({
       ...prev,
       [`${hadithId}-0`]: narratorKey
     }));
-    
+
     // تعيين الراوي كصاحب المسند
     setAssignedMusnadNarratorIds(prev => ({
       ...prev,
@@ -944,16 +935,16 @@ export default function BatchAddHadithPage() {
         <div className="space-y-4">
           {hadiths.map((hadith, index) => (
             <div key={hadith.id} className="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700">
-              <div 
+              <div
                 className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors ${
-                  hadith.isAnalyzed && 
+                  hadith.isAnalyzed &&
                   hadith.bookId &&
-                  hadith.analysisResult && 
+                  hadith.analysisResult &&
                   hadith.analysisResult.paths &&
                   hadith.analysisResult.paths.length > 0 &&
-                  hadith.analysisResult.paths.every(p => p.narrators.every(n => n.matchedNarratorId && n.isConfirmed)) 
+                  hadith.analysisResult.paths.every(p => p.narrators.every(n => n.matchedNarratorId && n.isConfirmed))
                   ? 'bg-green-900/30' : ''
-                }`} 
+                }`}
                 onClick={() => toggleExpand(hadith.id)}
               >
                 <div className="flex items-center justify-between">
@@ -964,19 +955,19 @@ export default function BatchAddHadithPage() {
                     <div>
                       <div className="font-semibold text-white">حديث {hadith.hadithNumber || '(بدون رقم)'}</div>
                       <div className="text-sm mt-1">{
-                        hadith.isAnalyzed && hadith.analysisResult && hadith.analysisResult.paths ? 
+                        hadith.isAnalyzed && hadith.analysisResult && hadith.analysisResult.paths ?
                         (hadith.analysisResult.paths.reduce((sum, path) => sum + path.narrators.length, 0) > 0 ?
                           <span className="text-emerald-400">
                             ✓ محلل ({hadith.analysisResult.paths.reduce((sum, path) => sum + path.narrators.length, 0)} راوي في {hadith.analysisResult.paths.length} {hadith.analysisResult.paths.length === 1 ? 'طريق' : 'طرق'})
                           </span> :
                           <span className="text-yellow-400">! محلل (لم يتم استخراج رواة)</span>
-                        ) : 
+                        ) :
                         <span className="text-gray-400">غير محلل</span>
                       }</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 sm:gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); duplicateHadith(hadith.id); }} className="p-2 text-gray-400 hover:text-blue-400 rounded-full hover:bg-gray-700" title="نسخ الحديث"><Copy size={18} /></button>
+                    {/* Removed the "نسخ الحديث" button */}
                     {hadiths.length > 1 && <button onClick={(e) => { e.stopPropagation(); removeHadithEntry(hadith.id); }} className="p-2 text-gray-400 hover:text-red-400 rounded-full hover:bg-gray-700" title="حذف الحديث"><X size={18} /></button>}
                     {hadith.isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </div>
@@ -1000,9 +991,9 @@ export default function BatchAddHadithPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">الكتاب</label>
-                      <select 
-                        value={hadith.bookId || ''} 
-                        disabled 
+                      <select
+                        value={hadith.bookId || ''}
+                        disabled
                         className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500 disabled:opacity-70 disabled:cursor-not-allowed"
                       >
                         <option value="" disabled>-- يتم التحديد تلقائياً --</option>
@@ -1015,21 +1006,61 @@ export default function BatchAddHadithPage() {
                       )}
                     </div>
                   </div>
-                  
+
+                  {/* Radio buttons for Hadith Type */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">نوع الحديث</label>
+                    <div className="flex items-center space-x-4 space-x-reverse">
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          name={`hadithType-${hadith.id}`}
+                          value="marfu"
+                          checked={hadith.hadithType === 'marfu'}
+                          onChange={(e) => updateHadith(hadith.id, { hadithType: e.target.value as 'marfu' | 'mawquf' | 'maqtu' })}
+                          className="form-radio h-4 w-4 text-blue-600 border-gray-600 focus:ring-blue-500"
+                        />
+                        <span className="mr-2 text-gray-300">مرفوع</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          name={`hadithType-${hadith.id}`}
+                          value="mawquf"
+                          checked={hadith.hadithType === 'mawquf'}
+                          onChange={(e) => updateHadith(hadith.id, { hadithType: e.target.value as 'marfu' | 'mawquf' | 'maqtu' })}
+                          className="form-radio h-4 w-4 text-blue-600 border-gray-600 focus:ring-blue-500"
+                        />
+                        <span className="mr-2 text-gray-300">موقوف</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="radio"
+                          name={`hadithType-${hadith.id}`}
+                          value="maqtu"
+                          checked={hadith.hadithType === 'maqtu'}
+                          onChange={(e) => updateHadith(hadith.id, { hadithType: e.target.value as 'marfu' | 'mawquf' | 'maqtu' })}
+                          className="form-radio h-4 w-4 text-blue-600 border-gray-600 focus:ring-blue-500"
+                        />
+                        <span className="mr-2 text-gray-300">مقطوع</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-300 mb-2">السند</label>
                     <textarea value={hadith.sanad} onChange={(e) => updateHadith(hadith.id, { sanad: e.target.value })} placeholder="حدثنا..." rows={3} className="w-full px-3 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:ring-2 focus:ring-blue-500" />
                     <div className="flex gap-2 mt-2 flex-wrap">
                       <button onClick={() => analyzeSingleHadith(hadith.id)} disabled={!hadith.sanad || isAnalyzingAll} className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"><Brain size={16} /> تحليل السند</button>
-                      <button 
-                        type="button" 
-                        onClick={() => { 
-                          setCurrentHadithId(hadith.id); 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentHadithId(hadith.id);
                           const firstPathNarrators = hadith.analysisResult?.paths?.[0]?.narrators;
                           const currentOrder = (firstPathNarrators?.length || 0) + 1;
-                          setNarratorOrder(currentOrder); 
-                          setShowManualNarratorModal(true); 
-                        }} 
+                          setNarratorOrder(currentOrder);
+                          setShowManualNarratorModal(true);
+                        }}
                         className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 flex items-center gap-1"
                       >
                         <UserPlus size={16} /> إضافة راوي يدوياً
@@ -1038,7 +1069,7 @@ export default function BatchAddHadithPage() {
                   </div>
 
                   {hadith.analysisError && <div className="mb-4 bg-red-900/20 border border-red-800 text-red-400 px-3 py-2 rounded-lg text-sm"><AlertCircle size={16} className="inline mr-1" />{hadith.analysisError}</div>}
-                  
+
                   {hadith.isAnalyzed && hadith.analysisResult && hadith.analysisResult.paths && hadith.analysisResult.paths.length > 0 && (
                     <div className="mb-4 space-y-6">
                       {hadith.analysisResult.paths.map((path, pathIdx) => (
@@ -1055,22 +1086,22 @@ export default function BatchAddHadithPage() {
                                   {path.narrators.map((narrator, nIndex) => (
                                     <Draggable key={`${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}`} draggableId={`${narrator.order}-${pathIdx}-${nIndex}-${hadith.id}`} index={nIndex}>
                                       {(providedDraggable: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                                        <div 
-                                          ref={providedDraggable.innerRef} 
-                                          {...providedDraggable.draggableProps} 
+                                        <div
+                                          ref={providedDraggable.innerRef}
+                                          {...providedDraggable.draggableProps}
                                           className={`flex items-center gap-2 p-2 bg-gray-800 rounded ${snapshot.isDragging ? 'ring-2 ring-blue-400 shadow-lg' : ''} ${narrator.isDuplicateAcrossPaths ? 'border-l-4 border-yellow-500' : 'border-l-4 border-transparent'}`}
                                           style={providedDraggable.draggableProps.style}
                                         >
                                           <div {...providedDraggable.dragHandleProps} className="w-6 h-6 bg-gray-700 text-gray-400 rounded-full flex items-center justify-center text-xs font-bold cursor-move hover:bg-gray-600" title="اسحب لتغيير الترتيب">{narrator.order}</div>
-                                          <input 
-                                            type="text" 
-                                            value={narrator.name} 
-                                            onChange={(e) => updateNarratorInHadith(hadith.id, pathIdx, nIndex, { name: e.target.value })} 
+                                          <input
+                                            type="text"
+                                            value={narrator.name}
+                                            onChange={(e) => updateNarratorInHadith(hadith.id, pathIdx, nIndex, { name: e.target.value })}
                                             className={`flex-1 px-2 py-1 bg-gray-600 border border-gray-500 text-white rounded text-sm focus:ring-1 focus:ring-blue-500 ${narrator.isDuplicateAcrossPaths ? 'font-semibold text-yellow-300 placeholder-yellow-500' : ''}`}
                                             placeholder="اسم الراوي"
                                           />
                                           <button onClick={() => removeNarratorFromHadith(hadith.id, pathIdx, nIndex)} className="text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-gray-600" title="حذف الراوي"><X size={14} /></button>
-                                          
+
                                           {/* الجزء الذي يعرض بيانات الراوي المطابق أو أزرار البحث */}
                                           {narrator.matchedNarratorId ? (
                                             <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
@@ -1092,9 +1123,9 @@ export default function BatchAddHadithPage() {
                                               {narrator.generation && <span className={`text-xs px-1 py-0.5 rounded ${getGenerationColor(narrator.generation)}`}>{narrator.generation}</span>}
                                               <button onClick={() => handleEditNarrator(hadith.id, pathIdx, nIndex)} className="text-gray-400 hover:text-yellow-400 p-1 rounded-full hover:bg-gray-600" title="تغيير الراوي/إعادة البحث"><Edit size={14} /></button>
                                               {!narrator.isConfirmed && (
-                                                <button 
-                                                  onClick={() => updateNarratorInHadith(hadith.id, pathIdx, nIndex, { isConfirmed: true })} 
-                                                  className="text-yellow-400 hover:text-green-400 p-1 rounded-full hover:bg-gray-600 text-xs" 
+                                                <button
+                                                  onClick={() => updateNarratorInHadith(hadith.id, pathIdx, nIndex, { isConfirmed: true })}
+                                                  className="text-yellow-400 hover:text-green-400 p-1 rounded-full hover:bg-gray-600 text-xs"
                                                   title="تأكيد المطابقة"
                                                 >
                                                   <Check size={14} />
@@ -1107,7 +1138,7 @@ export default function BatchAddHadithPage() {
                                               <button onClick={(e) => { e.stopPropagation(); handleShowAddNarratorModal(hadith.id, pathIdx, nIndex); }} className="text-emerald-400 hover:text-emerald-300 p-1 rounded-full hover:bg-gray-600 flex items-center" title="إضافة راوي جديد"><Plus size={16} /></button>
                                             </div>
                                           )}
-        
+
                                           {/* تعديل radio box ليكون أكثر وضوحًا */}
                                           <div className="flex items-center justify-center mr-auto">
                                             <input
@@ -1139,8 +1170,8 @@ export default function BatchAddHadithPage() {
                    hadith.analysisResult &&
                    hadith.analysisResult.paths &&
                    hadith.analysisResult.paths.length > 0 &&
-                   hadith.analysisResult.paths.every(p => 
-                     p.narrators.length > 0 && 
+                   hadith.analysisResult.paths.every(p =>
+                     p.narrators.length > 0 &&
                      p.narrators.every(n => n.matchedNarratorId && n.isConfirmed)
                    ) && (
                     <div className="my-4 flex justify-end">
@@ -1260,14 +1291,14 @@ export default function BatchAddHadithPage() {
             <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
               <div className="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-white">إضافة راوي جديد</h3>
-                <button 
-                  onClick={() => { 
-                    setShowAddNarratorModal(false); 
-                    setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' }); 
-                    setCurrentHadithId(null); 
-                    setCurrentPathIndex(-1); 
+                <button
+                  onClick={() => {
+                    setShowAddNarratorModal(false);
+                    setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' });
+                    setCurrentHadithId(null);
+                    setCurrentPathIndex(-1);
                     setCurrentNarratorIndex(-1);
-                  }} 
+                  }}
                   className="text-gray-400 hover:text-gray-300 p-1 rounded-full hover:bg-gray-700"
                 >
                   <X size={20} />
@@ -1279,40 +1310,40 @@ export default function BatchAddHadithPage() {
                     <label htmlFor="new-narrator-fullname" className="block text-sm font-medium text-gray-300 mb-1">
                       الاسم الكامل <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      id="new-narrator-fullname" 
-                      type="text" 
-                      value={newNarratorData.fullName} 
-                      onChange={(e) => setNewNarratorData({...newNarratorData, fullName: e.target.value})} 
-                      placeholder="اسم الراوي الكامل" 
-                      required 
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    <input
+                      id="new-narrator-fullname"
+                      type="text"
+                      value={newNarratorData.fullName}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, fullName: e.target.value})}
+                      placeholder="اسم الراوي الكامل"
+                      required
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="new-narrator-kunyah" className="block text-sm font-medium text-gray-300 mb-1">
                       الكنية
                     </label>
-                    <input 
-                      id="new-narrator-kunyah" 
-                      type="text" 
-                      value={newNarratorData.kunyah} 
-                      onChange={(e) => setNewNarratorData({...newNarratorData, kunyah: e.target.value})} 
-                      placeholder="كنية الراوي (اختياري)" 
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    <input
+                      id="new-narrator-kunyah"
+                      type="text"
+                      value={newNarratorData.kunyah}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, kunyah: e.target.value})}
+                      placeholder="كنية الراوي (اختياري)"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="new-narrator-generation" className="block text-sm font-medium text-gray-300 mb-1">
                       الطبقة <span className="text-red-500">*</span>
                     </label>
-                    <select 
-                      id="new-narrator-generation" 
-                      value={newNarratorData.generation} 
-                      onChange={(e) => setNewNarratorData({...newNarratorData, generation: e.target.value})} 
-                      required 
+                    <select
+                      id="new-narrator-generation"
+                      value={newNarratorData.generation}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, generation: e.target.value})}
+                      required
                       className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">اختر الطبقة</option>
@@ -1324,60 +1355,60 @@ export default function BatchAddHadithPage() {
                       ))}
                     </select>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="new-narrator-deathyear" className="block text-sm font-medium text-gray-300 mb-1">
                       سنة الوفاة
                     </label>
-                    <input 
-                      id="new-narrator-deathyear" 
-                      type="text" 
-                      value={newNarratorData.deathYear} 
-                      onChange={(e) => setNewNarratorData({...newNarratorData, deathYear: e.target.value})} 
-                      placeholder="سنة الوفاة بالهجري (مثل: 179)" 
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500" 
+                    <input
+                      id="new-narrator-deathyear"
+                      type="text"
+                      value={newNarratorData.deathYear}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, deathYear: e.target.value})}
+                      placeholder="سنة الوفاة بالهجري (مثل: 179)"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label htmlFor="new-narrator-translation" className="block text-sm font-medium text-gray-300 mb-1">
                       الترجمة
                     </label>
-                    <textarea 
-                      id="new-narrator-translation" 
-                      value={newNarratorData.translation} 
-                      onChange={(e) => setNewNarratorData({...newNarratorData, translation: e.target.value})} 
-                      placeholder="أدخل ترجمة مختصرة للراوي..." 
-                      rows={3} 
-                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" 
-                      dir="rtl" 
+                    <textarea
+                      id="new-narrator-translation"
+                      value={newNarratorData.translation}
+                      onChange={(e) => setNewNarratorData({...newNarratorData, translation: e.target.value})}
+                      placeholder="أدخل ترجمة مختصرة للراوي..."
+                      rows={3}
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                      dir="rtl"
                     />
                   </div>
-                  
+
                   <div className="flex justify-end gap-2 pt-2">
-                    <button 
-                      type="button" 
-                      onClick={() => { 
-                        setShowAddNarratorModal(false); 
-                        setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' }); 
-                        setCurrentHadithId(null); 
-                        setCurrentPathIndex(-1); 
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddNarratorModal(false);
+                        setNewNarratorData({ fullName: '', kunyah: '', generation: '', deathYear: '', translation: '' });
+                        setCurrentHadithId(null);
+                        setCurrentPathIndex(-1);
                         setCurrentNarratorIndex(-1);
-                      }} 
+                      }}
                       className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600"
                     >
                       إلغاء
                     </button>
-                    <button 
-                      type="submit" 
-                      disabled={isAddingNarrator || !newNarratorData.fullName || !newNarratorData.generation} 
+                    <button
+                      type="submit"
+                      disabled={isAddingNarrator || !newNarratorData.fullName || !newNarratorData.generation}
                       className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isAddingNarrator ? 
+                      {isAddingNarrator ?
                         <>
-                          <Loader2 size={16} className="inline mr-2 animate-spin" /> 
+                          <Loader2 size={16} className="inline mr-2 animate-spin" />
                           جارٍ الإضافة...
-                        </> : 
+                        </> :
                         'حفظ الراوي'
                       }
                     </button>

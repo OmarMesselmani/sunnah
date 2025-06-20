@@ -13,12 +13,18 @@
     "@google/generative-ai": "^0.24.1",
     "@hello-pangea/dnd": "^18.0.1",
     "axios": "^1.6.7",
+    "docx": "^9.5.1",
+    "file-saver": "^2.0.5",
+    "html-to-text": "^9.0.5",
     "lucide-react": "^0.363.0",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/html-to-docx": "^1.8.0",
+    "@types/html-to-text": "^9.0.4",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-beautiful-dnd": "^13.1.8",

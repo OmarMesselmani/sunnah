@@ -628,6 +628,121 @@ app.get('/api/narrators/:id/hadiths', async (req, res) => {
   }
 });
 
+// ⭐ نقل endpoint المسند هنا
+app.get('/api/narrators/:id/musnad', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    // التحقق من صحة UUID
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+    
+    // التحقق من وجود الراوي أولاً
+    const narrator = await prisma.narrator.findUnique({
+      where: { id }
+    });
+    
+    if (!narrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+    
+    console.log(`📚 جلب مسند الراوي: ${narrator.fullName} (ID: ${id})`);
+    
+    // جلب الأحاديث المسندة لهذا الراوي (التي يرويها عن النبي مباشرة)
+    const hadiths = await prisma.hadith.findMany({
+      where: {
+        musnadSahabiId: id
+      },
+      include: {
+        source: {
+          select: {
+            id: true,
+            name: true,
+            author: true
+          }
+        },
+        book: {
+          select: {
+            id: true,
+            name: true,
+            bookNumber: true
+          }
+        },
+        chapter: {
+          select: {
+            id: true,
+            name: true,
+            chapterNumber: true
+          }
+        },
+        narrators: {
+          include: {
+            narrator: {
+              include: {
+                deathYears: {
+                  orderBy: [
+                    { isPrimary: 'desc' },
+                    { year: 'asc' }
+                  ]
+                }
+              }
+            }
+          },
+          orderBy: {
+            orderInChain: 'asc'
+          }
+        },
+        manualReviews: {
+          orderBy: {
+            reviewedAt: 'desc'
+          }
+        }
+      },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      orderBy: { id: 'asc' }
+    });
+    
+    // عد إجمالي الأحاديث المسندة لهذا الراوي
+    const total = await prisma.hadith.count({
+      where: {
+        musnadSahabiId: id
+      }
+    });
+    
+    console.log(`📊 تم جلب ${hadiths.length} حديث من أصل ${total} للراوي ${narrator.fullName}`);
+    
+    // تحويل البيانات لتتناسب مع الواجهة الأمامية
+    const transformedHadiths = hadiths.map(hadith => ({
+      ...hadith,
+      chain: hadith.sanad, // إضافة حقل chain للتوافق مع الواجهة الأمامية
+      grade: undefined, // يمكن إضافة منطق تقييم الحديث هنا لاحقاً
+      explanation: undefined // يمكن إضافة شرح الحديث هنا لاحقاً
+    }));
+    
+    const pagination = {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      pages: Math.ceil(total / Number(limit))
+    };
+    
+    res.json({
+      hadiths: transformedHadiths,
+      pagination
+    });
+    
+  } catch (error) {
+    console.error('خطأ في جلب مسند الراوي:', error);
+    res.status(500).json({ 
+      error: 'حدث خطأ في جلب أحاديث المسند',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'خطأ غير معروف') : undefined
+    });
+  }
+});
+
 // الحصول على علاقات الراوي
 app.get('/api/narrators/:id/relations', async (req, res) => {
   try {
@@ -1084,6 +1199,7 @@ app.use('*', (req, res) => {
       'PUT /api/narrators/:id',
       'DELETE /api/narrators/:id',
       'GET /api/narrators/:id/hadiths',
+      'GET /api/narrators/:id/musnad', // ✅ إضافة المسند للقائمة
       'GET /api/narrators/:id/relations',
       'GET /api/narrators/search',
       'GET /api/hadiths/search',
@@ -1113,6 +1229,7 @@ async function startServer() {
       console.log(`   • PUT  /api/narrators/:id - تحديث راوي`);
       console.log(`   • DELETE /api/narrators/:id - حذف راوي`);
       console.log(`   • GET  /api/narrators/:id/hadiths - أحاديث راوي محدد`);
+      console.log(`   • GET  /api/narrators/:id/musnad - مسند الراوي`); // ✅ إضافة المسند
       console.log(`   • GET  /api/narrators/:id/relations - علاقات راوي محدد`);
       console.log(`   • GET  /api/narrators/search - البحث عن رواة`);
       console.log(`   • GET  /api/hadiths/search - البحث في الأحاديث`);
@@ -1126,135 +1243,10 @@ async function startServer() {
   }
 }
 
-// التعامل مع إيقاف الخادم بشكل نظيف
-process.on('SIGINT', async () => {
-  console.log('\n🛑 إيقاف الخادم...');
-  await prisma.$disconnect();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('\n🛑 إنهاء الخادم...');
-  await prisma.$disconnect();
-  process.exit(0);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('💥 Uncaught Exception:', error);
-  process.exit(1);
-});
-
-// إضافة endpoint للحصول على مسند الراوي
-app.get('/api/narrators/:id/musnad', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    
-    // التحقق من صحة UUID
-    if (!isValidUUID(id)) {
-      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
-    }
-    
-    // التحقق من وجود الراوي أولاً
-    const narrator = await prisma.narrator.findUnique({
-      where: { id }
-    });
-    
-    if (!narrator) {
-      return res.status(404).json({ error: 'الراوي غير موجود' });
-    }
-    
-    // جلب الأحاديث المسندة لهذا الراوي (التي يرويها عن النبي مباشرة)
-    const hadiths = await prisma.hadith.findMany({
-      where: {
-        musnadSahabiId: id
-      },
-      include: {
-        source: {
-          select: {
-            id: true,
-            name: true,
-            author: true
-          }
-        },
-        book: {
-          select: {
-            id: true,
-            name: true,
-            bookNumber: true
-          }
-        },
-        chapter: {
-          select: {
-            id: true,
-            name: true,
-            chapterNumber: true
-          }
-        },
-        narrators: {
-          include: {
-            narrator: {
-              include: {
-                deathYears: {
-                  orderBy: [
-                    { isPrimary: 'desc' },
-                    { year: 'asc' }
-                  ]
-                }
-              }
-            }
-          },
-          orderBy: {
-            orderInChain: 'asc'
-          }
-        },
-        manualReviews: {
-          orderBy: {
-            reviewedAt: 'desc'
-          }
-        }
-      },
-      skip: (Number(page) - 1) * Number(limit),
-      take: Number(limit),
-      orderBy: { id: 'asc' }
-    });
-    
-    // عد إجمالي الأحاديث المسندة لهذا الراوي
-    const total = await prisma.hadith.count({
-      where: {
-        musnadSahabiId: id
-      }
-    });
-    
-    // تحويل البيانات لتتناسب مع الواجهة الأمامية
-    const transformedHadiths = hadiths.map(hadith => ({
-      ...hadith,
-      chain: hadith.sanad, // إضافة حقل chain للتوافق مع الواجهة الأمامية
-      grade: undefined, // يمكن إضافة منطق تقييم الحديث هنا لاحقاً
-      explanation: undefined // يمكن إضافة شرح الحديث هنا لاحقاً
-    }));
-    
-    res.json({
-      hadiths: transformedHadiths,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        pages: Math.ceil(total / Number(limit))
-      }
-    });
-    
-  } catch (error) {
-    console.error('Error fetching narrator musnad:', error);
-    res.status(500).json({ 
-      error: 'حدث خطأ في جلب أحاديث المسند',
-      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'خطأ غير معروف') : undefined
-    });
-  }
-});
+// ⚠️ إزالة endpoint المسند المكرر من هنا
+// process.on('uncaughtException', (error) => { // هذا الجزء مكرر ومكانه في الأعلى
+// console.error('💥 Uncaught Exception:', error);
+// process.exit(1);
+// });
 
 startServer();
