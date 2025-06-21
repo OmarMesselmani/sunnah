@@ -18,7 +18,7 @@ import {
 import { getHadithById } from '@/lib/api';
 
 interface Narrator {
-  id: number;
+  id: string | number;
   fullName: string;
   kunyah?: string;
   generation: string;

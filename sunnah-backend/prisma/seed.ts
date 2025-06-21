@@ -92,7 +92,7 @@ async function main() {
     }
   });
 
-  // إضافة حديث تجريبي
+  // إضافة حديث مرفوع
   const hadith1 = await prisma.hadith.create({
     data: {
       sourceId: bukhari.id,
@@ -101,13 +101,84 @@ async function main() {
       hadithNumber: '8',
       sanad: 'حدثنا عبد الله بن يوسف قال أخبرنا مالك عن ابن شهاب عن أبي هريرة رضي الله عنه',
       matn: 'أن رسول الله صلى الله عليه وسلم قال: "المسلم من سلم المسلمون من لسانه ويده، والمهاجر من هجر ما نهى الله عنه"',
-      musnadSahabiId: abuHurayrah.id
+      musnadSahabiId: abuHurayrah.id,
+      hadithType: 'marfu' // حديث مرفوع
     }
   });
 
-  // ربط الرواة بالحديث
+  // إضافة حديث موقوف
+  const hadith2 = await prisma.hadith.create({
+    data: {
+      sourceId: bukhari.id,
+      bookId: kitabAlIman.id,
+      chapterId: babAlIman.id,
+      hadithNumber: '9',
+      sanad: 'حدثنا عبد الله بن يوسف قال أخبرنا مالك عن ابن شهاب عن عبد الله بن عمر',
+      matn: 'قال عبد الله بن عمر: "أفضل الأعمال الصلاة على وقتها والبر بالوالدين"',
+      musnadSahabiId: abdullahIbnUmar.id,
+      hadithType: 'mawquf' // حديث موقوف
+    }
+  });
+
+  // إضافة حديث مقطوع
+  const hadith3 = await prisma.hadith.create({
+    data: {
+      sourceId: bukhari.id,
+      bookId: kitabAlIman.id,
+      chapterId: babAlIman.id,
+      hadithNumber: '10',
+      sanad: 'حدثنا عبد الله بن يوسف قال أخبرنا مالك عن ابن شهاب',
+      matn: 'قال ابن شهاب: "العلم خير من المال، العلم يحرسك وأنت تحرس المال"',
+      musnadSahabiId: null, // لا يوجد صحابي للحديث المقطوع
+      hadithType: 'maqtu' // حديث مقطوع
+    }
+  });
+
+  // إضافة المزيد من الأحاديث المرفوعة لأبي هريرة
+  const hadith4 = await prisma.hadith.create({
+    data: {
+      sourceId: bukhari.id,
+      bookId: kitabAlIman.id,
+      chapterId: babAlIman.id,
+      hadithNumber: '11',
+      sanad: 'حدثنا عبد الله بن يوسف قال أخبرنا مالك عن ابن شهاب عن أبي هريرة رضي الله عنه',
+      matn: 'أن رسول الله صلى الله عليه وسلم قال: "الإيمان بضع وسبعون شعبة، أعلاها لا إله إلا الله، وأدناها إماطة الأذى عن الطريق"',
+      musnadSahabiId: abuHurayrah.id,
+      hadithType: 'marfu'
+    }
+  });
+
+  const hadith5 = await prisma.hadith.create({
+    data: {
+      sourceId: bukhari.id,
+      bookId: kitabAlIman.id,
+      chapterId: babAlIman.id,
+      hadithNumber: '12',
+      sanad: 'حدثنا عبد الله بن يوسف قال أخبرنا مالك عن ابن شهاب عن أبي هريرة رضي الله عنه',
+      matn: 'أن رسول الله صلى الله عليه وسلم قال: "كل أمتي يدخلون الجنة إلا من أبى"، قيل: ومن يأبى يا رسول الله؟ قال: "من أطاعني دخل الجنة، ومن عصاني فقد أبى"',
+      musnadSahabiId: abuHurayrah.id,
+      hadithType: 'marfu'
+    }
+  });
+
+  // إضافة المزيد من الموقوفات لعبد الله بن عمر
+  const hadith6 = await prisma.hadith.create({
+    data: {
+      sourceId: bukhari.id,
+      bookId: kitabAlIman.id,
+      chapterId: babAlIman.id,
+      hadithNumber: '13',
+      sanad: 'حدثنا عبد الله بن يوسف قال أخبرنا مالك عن نافع عن عبد الله بن عمر',
+      matn: 'قال عبد الله بن عمر: "كنت أكره أن أنام وفي قلبي شيء على أحد من المسلمين"',
+      musnadSahabiId: abdullahIbnUmar.id,
+      hadithType: 'mawquf'
+    }
+  });
+
+  // ربط الرواة بالأحاديث
   await prisma.hadithNarrator.createMany({
     data: [
+      // الحديث الأول (مرفوع)
       {
         hadithId: hadith1.id,
         narratorId: abdullahIbnYusuf.id,
@@ -130,6 +201,119 @@ async function main() {
         hadithId: hadith1.id,
         narratorId: abuHurayrah.id,
         orderInChain: 4,
+        narrationType: 'عن'
+      },
+      // الحديث الثاني (موقوف)
+      {
+        hadithId: hadith2.id,
+        narratorId: abdullahIbnYusuf.id,
+        orderInChain: 1,
+        narrationType: 'حدثنا'
+      },
+      {
+        hadithId: hadith2.id,
+        narratorId: malik.id,
+        orderInChain: 2,
+        narrationType: 'أخبرنا'
+      },
+      {
+        hadithId: hadith2.id,
+        narratorId: ibnShihab.id,
+        orderInChain: 3,
+        narrationType: 'عن'
+      },
+      {
+        hadithId: hadith2.id,
+        narratorId: abdullahIbnUmar.id,
+        orderInChain: 4,
+        narrationType: 'عن'
+      },
+      // الحديث الثالث (مقطوع)
+      {
+        hadithId: hadith3.id,
+        narratorId: abdullahIbnYusuf.id,
+        orderInChain: 1,
+        narrationType: 'حدثنا'
+      },
+      {
+        hadithId: hadith3.id,
+        narratorId: malik.id,
+        orderInChain: 2,
+        narrationType: 'أخبرنا'
+      },
+      {
+        hadithId: hadith3.id,
+        narratorId: ibnShihab.id,
+        orderInChain: 3,
+        narrationType: 'عن'
+      },
+      // الحديث الرابع (مرفوع)
+      {
+        hadithId: hadith4.id,
+        narratorId: abdullahIbnYusuf.id,
+        orderInChain: 1,
+        narrationType: 'حدثنا'
+      },
+      {
+        hadithId: hadith4.id,
+        narratorId: malik.id,
+        orderInChain: 2,
+        narrationType: 'أخبرنا'
+      },
+      {
+        hadithId: hadith4.id,
+        narratorId: ibnShihab.id,
+        orderInChain: 3,
+        narrationType: 'عن'
+      },
+      {
+        hadithId: hadith4.id,
+        narratorId: abuHurayrah.id,
+        orderInChain: 4,
+        narrationType: 'عن'
+      },
+      // الحديث الخامس (مرفوع)
+      {
+        hadithId: hadith5.id,
+        narratorId: abdullahIbnYusuf.id,
+        orderInChain: 1,
+        narrationType: 'حدثنا'
+      },
+      {
+        hadithId: hadith5.id,
+        narratorId: malik.id,
+        orderInChain: 2,
+        narrationType: 'أخبرنا'
+      },
+      {
+        hadithId: hadith5.id,
+        narratorId: ibnShihab.id,
+        orderInChain: 3,
+        narrationType: 'عن'
+      },
+      {
+        hadithId: hadith5.id,
+        narratorId: abuHurayrah.id,
+        orderInChain: 4,
+        narrationType: 'عن'
+      },
+      // الحديث السادس (موقوف)
+      {
+        hadithId: hadith6.id,
+        narratorId: abdullahIbnYusuf.id,
+        orderInChain: 1,
+        narrationType: 'حدثنا'
+      },
+      {
+        hadithId: hadith6.id,
+        narratorId: malik.id,
+        orderInChain: 2,
+        narrationType: 'أخبرنا'
+      },
+      {
+        hadithId: hadith6.id,
+        narratorId: abdullahIbnUmar.id,
+        orderInChain: 3,
         narrationType: 'عن'
       }
     ]
@@ -157,6 +341,11 @@ async function main() {
   });
 
   console.log('✅ تمت إضافة البيانات التجريبية بنجاح!');
+  console.log('📊 تم إضافة:');
+  console.log('  - 5 رواة');
+  console.log('  - 6 أحاديث (3 مرفوعة، 2 موقوفة، 1 مقطوعة)');
+  console.log('  - مصدران (البخاري ومسلم)');
+  console.log('  - كتاب وباب');
 }
 
 main()

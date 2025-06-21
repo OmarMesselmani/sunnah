@@ -102,8 +102,8 @@ app.get('/api/narrators', async (req, res) => {
       include: {
         deathYears: {
           orderBy: [
-            { isPrimary: 'desc' }, // السنة الأساسية أولاً
-            { year: 'asc' }        // ثم باقي السنوات مرتبة
+            { isPrimary: 'desc' },
+            { year: 'asc' }
           ]
         },
         _count: {
@@ -146,11 +146,9 @@ app.post('/api/narrators', async (req, res) => {
     const { 
       fullName, 
       kunyas, 
-      // deathYears سيأتي الآن كمصفوفة من الكائنات، كل كائن قد يحتوي على year أو description
       deathYears = [], 
       generation, 
       translation,
-      // ...
     } = req.body;
 
     // التحقق من البيانات المطلوبة
@@ -164,7 +162,7 @@ app.post('/api/narrators', async (req, res) => {
 
     // معالجة سنوات الوفاة
     interface ProcessedDeathYearInput {
-      year?: string | number; // قد يكون رقمًا أو نصًا من الواجهة الأمامية
+      year?: string | number;
       description?: string;
       isPrimary?: boolean;
     }
@@ -175,19 +173,17 @@ app.post('/api/narrators', async (req, res) => {
         const descriptionStr = input.description ? String(input.description).trim() : null;
         
         let numericYear: number | null = null;
-        if (yearStr && /^\d+$/.test(yearStr)) { // تحقق إذا كان نص السنة هو رقم صحيح
+        if (yearStr && /^\d+$/.test(yearStr)) {
           numericYear = parseInt(yearStr, 10);
-          if (isNaN(numericYear) || numericYear <= 0 || numericYear >= 2000) { // نطاق مثال
-            numericYear = null; // تجاهل إذا لم يكن رقمًا صالحًا
+          if (isNaN(numericYear) || numericYear <= 0 || numericYear >= 2000) {
+            numericYear = null;
           }
         }
 
-        // إذا كان هناك سنة رقمية صالحة، تجاهل الوصف النصي لنفس الإدخال
-        // أو يمكنك السماح بكليهما إذا كان هذا هو المطلوب
         if (numericYear !== null) {
           return {
             year: numericYear,
-            deathDescription: null, // أو input.description إذا أردت حفظ كليهما
+            deathDescription: null,
             isPrimary: input.isPrimary !== undefined ? input.isPrimary : index === 0,
           };
         } else if (descriptionStr && descriptionStr.length > 0) {
@@ -197,9 +193,9 @@ app.post('/api/narrators', async (req, res) => {
             isPrimary: input.isPrimary !== undefined ? input.isPrimary : index === 0,
           };
         }
-        return null; // تجاهل الإدخال إذا كان كلاهما فارغًا أو غير صالح
+        return null;
       })
-      .filter(Boolean); // إزالة الإدخالات الفارغة
+      .filter(Boolean);
 
     console.log('🔄 معالجة البيانات:', {
       fullName: fullName.trim(),
@@ -228,18 +224,16 @@ app.post('/api/narrators', async (req, res) => {
 
     // استخدام Transaction لضمان سلامة البيانات
     const result = await prisma.$transaction(async (tx: any) => {
-      // إنشاء الراوي - سيتم توليد UUID تلقائياً
+      // إنشاء الراوي
       const narrator = await tx.narrator.create({
         data: {
           fullName: fullName.trim(),
           kunyah: kunyas?.trim() || null,
-          // تحديد deathYear الرئيسي بناءً على أول إدخال صالح
           deathYear: processedDeathYears.length > 0 
             ? (processedDeathYears[0]?.year?.toString() || processedDeathYears[0]?.deathDescription || null) 
             : null,
           generation: generation.trim(),
           biography: translation?.trim() || null,
-          // ...
         }
       });
 
@@ -254,15 +248,14 @@ app.post('/api/narrators', async (req, res) => {
         });
       }
 
-      // إرجاع الراوي مع سنوات الوفاة
       return await tx.narrator.findUnique({
         where: { id: narrator.id },
         include: {
           deathYears: {
             orderBy: [
               { isPrimary: 'desc' },
-              { year: 'asc' }, // سيرتب السنوات الرقمية
-              { deathDescription: 'asc' } // ثم الأوصاف النصية
+              { year: 'asc' },
+              { deathDescription: 'asc' }
             ]
           },
           _count: {
@@ -288,14 +281,12 @@ app.post('/api/narrators', async (req, res) => {
   } catch (error: any) {
     console.error('❌ خطأ في إضافة الراوي:', error);
     
-    // التعامل مع خطأ التكرار
     if (error.code === 'P2002') {
       return res.status(409).json({ 
         error: 'يوجد راوي بنفس هذا الاسم مسبقاً' 
       });
     }
     
-    // خطأ في الاتصال بقاعدة البيانات
     if (error.code === 'P1001') {
       return res.status(500).json({ 
         error: 'فشل الاتصال بقاعدة البيانات. تأكد من تشغيل MySQL',
@@ -316,7 +307,6 @@ app.get('/api/narrators/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // التحقق من صحة UUID
     if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
@@ -355,7 +345,351 @@ app.get('/api/narrators/:id', async (req, res) => {
   }
 });
 
-// تحديث راوي موجود
+// جلب الأحاديث المرفوعة للراوي (المسند) - محدث ليجلب المرفوع فقط
+app.get('/api/narrators/:id/musnad', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+
+    const narrator = await prisma.narrator.findUnique({
+      where: { id }
+    });
+
+    if (!narrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+
+    console.log(`📚 جلب مسند الراوي: ${narrator.fullName} (ID: ${id})`);
+
+    // جلب الأحاديث المرفوعة فقط
+    const hadiths = await prisma.hadith.findMany({
+      where: {
+        musnadSahabiId: id,
+        hadithType: 'marfu' // فلتر المرفوع فقط
+      },
+      include: {
+        source: {
+          select: {
+            id: true,
+            name: true,
+            author: true
+          }
+        },
+        book: {
+          select: {
+            id: true,
+            name: true,
+            bookNumber: true
+          }
+        },
+        chapter: {
+          select: {
+            id: true,
+            name: true,
+            chapterNumber: true
+          }
+        },
+        narrators: {
+          include: {
+            narrator: {
+              include: {
+                deathYears: {
+                  orderBy: [
+                    { isPrimary: 'desc' },
+                    { year: 'asc' }
+                  ]
+                }
+              }
+            }
+          },
+          orderBy: {
+            orderInChain: 'asc'
+          }
+        },
+        manualReviews: {
+          orderBy: {
+            reviewedAt: 'desc'
+          }
+        }
+      },
+      orderBy: {
+        hadithNumber: 'asc'
+      },
+      skip: offset,
+      take: parseInt(limit as string)
+    });
+
+    const total = await prisma.hadith.count({
+      where: {
+        musnadSahabiId: id,
+        hadithType: 'marfu'
+      }
+    });
+
+    const pages = Math.ceil(total / parseInt(limit as string));
+
+    console.log(`📊 تم جلب ${hadiths.length} حديث مرفوع من أصل ${total} للراوي ${narrator.fullName}`);
+
+    // تحويل البيانات لتتناسب مع الواجهة الأمامية
+    const transformedHadiths = hadiths.map(hadith => ({
+      ...hadith,
+      chain: hadith.sanad,
+      grade: undefined,
+      explanation: undefined
+    }));
+
+    res.json({
+      hadiths: transformedHadiths,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total,
+        pages
+      }
+    });
+  } catch (error) {
+    console.error('خطأ في جلب مسند الراوي:', error);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+  }
+});
+
+// جلب الأحاديث الموقوفة للراوي - جديد
+app.get('/api/narrators/:id/mawquf', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+
+    const narrator = await prisma.narrator.findUnique({
+      where: { id }
+    });
+
+    if (!narrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+
+    const hadiths = await prisma.hadith.findMany({
+      where: {
+        musnadSahabiId: id,
+        hadithType: 'mawquf'
+      },
+      include: {
+        source: true,
+        book: true,
+        chapter: true,
+        narrators: {
+          include: {
+            narrator: true
+          },
+          orderBy: {
+            orderInChain: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        hadithNumber: 'asc'
+      },
+      skip: offset,
+      take: parseInt(limit as string)
+    });
+
+    const total = await prisma.hadith.count({
+      where: {
+        musnadSahabiId: id,
+        hadithType: 'mawquf'
+      }
+    });
+
+    const pages = Math.ceil(total / parseInt(limit as string));
+
+    const transformedHadiths = hadiths.map(hadith => ({
+      ...hadith,
+      chain: hadith.sanad,
+      grade: undefined,
+      explanation: undefined
+    }));
+
+    res.json({
+      hadiths: transformedHadiths,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total,
+        pages
+      }
+    });
+  } catch (error) {
+    console.error('خطأ في جلب الموقوفات:', error);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+  }
+});
+
+// جلب الأحاديث المقطوعة للراوي - جديد
+app.get('/api/narrators/:id/maqtu', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+
+    const narrator = await prisma.narrator.findUnique({
+      where: { id }
+    });
+
+    if (!narrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+
+    // للمقطوعات، نبحث في الرواة المرتبطين بالحديث أيضاً
+    const hadiths = await prisma.hadith.findMany({
+      where: {
+        hadithType: 'maqtu',
+        OR: [
+          { musnadSahabiId: id },
+          {
+            narrators: {
+              some: {
+                narratorId: id
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        source: true,
+        book: true,
+        chapter: true,
+        narrators: {
+          include: {
+            narrator: true
+          },
+          orderBy: {
+            orderInChain: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        hadithNumber: 'asc'
+      },
+      skip: offset,
+      take: parseInt(limit as string)
+    });
+
+    const total = await prisma.hadith.count({
+      where: {
+        hadithType: 'maqtu',
+        OR: [
+          { musnadSahabiId: id },
+          {
+            narrators: {
+              some: {
+                narratorId: id
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    const pages = Math.ceil(total / parseInt(limit as string));
+
+    const transformedHadiths = hadiths.map(hadith => ({
+      ...hadith,
+      chain: hadith.sanad,
+      grade: undefined,
+      explanation: undefined
+    }));
+
+    res.json({
+      hadiths: transformedHadiths,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total,
+        pages
+      }
+    });
+  } catch (error) {
+    console.error('خطأ في جلب المقطوعات:', error);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+  }
+});
+
+// جلب إحصائيات أنواع الأحاديث للراوي - جديد
+app.get('/api/narrators/:id/hadith-stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidUUID(id)) {
+      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
+    }
+
+    const narrator = await prisma.narrator.findUnique({
+      where: { id }
+    });
+
+    if (!narrator) {
+      return res.status(404).json({ error: 'الراوي غير موجود' });
+    }
+
+    // حساب المرفوعات
+    const marfuCount = await prisma.hadith.count({
+      where: {
+        musnadSahabiId: id,
+        hadithType: 'marfu'
+      }
+    });
+
+    // حساب الموقوفات
+    const mawqufCount = await prisma.hadith.count({
+      where: {
+        musnadSahabiId: id,
+        hadithType: 'mawquf'
+      }
+    });
+
+    // حساب المقطوعات
+    const maqtuCount = await prisma.hadith.count({
+      where: {
+        hadithType: 'maqtu',
+        OR: [
+          { musnadSahabiId: id },
+          {
+            narrators: {
+              some: {
+                narratorId: id
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    res.json({
+      marfu: marfuCount,
+      mawquf: mawqufCount,
+      maqtu: maqtuCount,
+      total: marfuCount + mawqufCount + maqtuCount
+    });
+  } catch (error) {
+    console.error('خطأ في جلب إحصائيات الأحاديث:', error);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+  }
+});
+
+// باقي endpoints الرواة (تحديث، حذف، علاقات، إلخ.)
 app.put('/api/narrators/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -367,18 +701,15 @@ app.put('/api/narrators/:id', async (req, res) => {
       translation 
     } = req.body;
 
-    // التحقق من صحة UUID
     if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
 
-    // تعريف واجهة لسنوات الوفاة
     interface ValidDeathYear {
       year: number;
       isPrimary: boolean;
     }
 
-    // معالجة سنوات الوفاة
     const validDeathYears = deathYears
       .filter((year: any) => year && String(year).trim())
       .map((year: any, index: number) => {
@@ -394,7 +725,6 @@ app.put('/api/narrators/:id', async (req, res) => {
       .filter(Boolean);
 
     const result = await prisma.$transaction(async (tx: any) => {
-      // تحديث بيانات الراوي الأساسية
       const updatedNarrator = await tx.narrator.update({
         where: { id },
         data: {
@@ -406,12 +736,10 @@ app.put('/api/narrators/:id', async (req, res) => {
         }
       });
 
-      // حذف سنوات الوفاة الحالية
       await tx.narratorDeathYear.deleteMany({
         where: { narratorId: id }
       });
 
-      // إضافة سنوات الوفاة الجديدة
       if (validDeathYears.length > 0) {
         await tx.narratorDeathYear.createMany({
           data: (validDeathYears as ValidDeathYear[]).map((dy: ValidDeathYear) => ({
@@ -422,7 +750,6 @@ app.put('/api/narrators/:id', async (req, res) => {
         });
       }
 
-      // إرجاع الراوي المحدث
       return await tx.narrator.findUnique({
         where: { id },
         include: {
@@ -461,17 +788,14 @@ app.put('/api/narrators/:id', async (req, res) => {
   }
 });
 
-// حذف راوي
 app.delete('/api/narrators/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // التحقق من صحة UUID
     if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
 
-    // التحقق من وجود الراوي أولاً
     const existingNarrator = await prisma.narrator.findUnique({
       where: { id },
       include: {
@@ -490,7 +814,6 @@ app.delete('/api/narrators/:id', async (req, res) => {
       return res.status(404).json({ error: 'الراوي غير موجود' });
     }
 
-    // التحقق من وجود أحاديث مرتبطة
     const hadithCount = await prisma.hadithNarrator.count({
       where: { narratorId: id }
     });
@@ -501,7 +824,6 @@ app.delete('/api/narrators/:id', async (req, res) => {
       });
     }
 
-    // التحقق من وجود مسند
     const musnadCount = await prisma.hadith.count({
       where: { musnadSahabiId: id }
     });
@@ -512,14 +834,11 @@ app.delete('/api/narrators/:id', async (req, res) => {
       });
     }
 
-    // حذف الراوي مع جميع بياناته المرتبطة في transaction
     await prisma.$transaction(async (tx) => {
-      // حذف سنوات الوفاة أولاً
       await tx.narratorDeathYear.deleteMany({
         where: { narratorId: id }
       });
 
-      // حذف علاقات الشيوخ والتلاميذ
       await tx.narratorRelation.deleteMany({
         where: { 
           OR: [
@@ -529,12 +848,6 @@ app.delete('/api/narrators/:id', async (req, res) => {
         }
       });
 
-      // حذف المراجعات اليدوية إن وجدت (إذا كان هناك جدول للمراجعات مرتبط بالراوي)
-      // await tx.manualReview.deleteMany({
-      //   where: { reviewerId: id } // إذا كان هناك حقل reviewerId
-      // });
-
-      // حذف الراوي نفسه
       await tx.narrator.delete({
         where: { id }
       });
@@ -573,7 +886,6 @@ app.get('/api/narrators/:id/hadiths', async (req, res) => {
     const { id } = req.params;
     const { page = 1, limit = 10 } = req.query;
     
-    // التحقق من صحة UUID
     if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
@@ -628,127 +940,11 @@ app.get('/api/narrators/:id/hadiths', async (req, res) => {
   }
 });
 
-// ⭐ نقل endpoint المسند هنا
-app.get('/api/narrators/:id/musnad', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    
-    // التحقق من صحة UUID
-    if (!isValidUUID(id)) {
-      return res.status(400).json({ error: 'معرف الراوي غير صالح' });
-    }
-    
-    // التحقق من وجود الراوي أولاً
-    const narrator = await prisma.narrator.findUnique({
-      where: { id }
-    });
-    
-    if (!narrator) {
-      return res.status(404).json({ error: 'الراوي غير موجود' });
-    }
-    
-    console.log(`📚 جلب مسند الراوي: ${narrator.fullName} (ID: ${id})`);
-    
-    // جلب الأحاديث المسندة لهذا الراوي (التي يرويها عن النبي مباشرة)
-    const hadiths = await prisma.hadith.findMany({
-      where: {
-        musnadSahabiId: id
-      },
-      include: {
-        source: {
-          select: {
-            id: true,
-            name: true,
-            author: true
-          }
-        },
-        book: {
-          select: {
-            id: true,
-            name: true,
-            bookNumber: true
-          }
-        },
-        chapter: {
-          select: {
-            id: true,
-            name: true,
-            chapterNumber: true
-          }
-        },
-        narrators: {
-          include: {
-            narrator: {
-              include: {
-                deathYears: {
-                  orderBy: [
-                    { isPrimary: 'desc' },
-                    { year: 'asc' }
-                  ]
-                }
-              }
-            }
-          },
-          orderBy: {
-            orderInChain: 'asc'
-          }
-        },
-        manualReviews: {
-          orderBy: {
-            reviewedAt: 'desc'
-          }
-        }
-      },
-      skip: (Number(page) - 1) * Number(limit),
-      take: Number(limit),
-      orderBy: { id: 'asc' }
-    });
-    
-    // عد إجمالي الأحاديث المسندة لهذا الراوي
-    const total = await prisma.hadith.count({
-      where: {
-        musnadSahabiId: id
-      }
-    });
-    
-    console.log(`📊 تم جلب ${hadiths.length} حديث من أصل ${total} للراوي ${narrator.fullName}`);
-    
-    // تحويل البيانات لتتناسب مع الواجهة الأمامية
-    const transformedHadiths = hadiths.map(hadith => ({
-      ...hadith,
-      chain: hadith.sanad, // إضافة حقل chain للتوافق مع الواجهة الأمامية
-      grade: undefined, // يمكن إضافة منطق تقييم الحديث هنا لاحقاً
-      explanation: undefined // يمكن إضافة شرح الحديث هنا لاحقاً
-    }));
-    
-    const pagination = {
-      page: Number(page),
-      limit: Number(limit),
-      total,
-      pages: Math.ceil(total / Number(limit))
-    };
-    
-    res.json({
-      hadiths: transformedHadiths,
-      pagination
-    });
-    
-  } catch (error) {
-    console.error('خطأ في جلب مسند الراوي:', error);
-    res.status(500).json({ 
-      error: 'حدث خطأ في جلب أحاديث المسند',
-      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'خطأ غير معروف') : undefined
-    });
-  }
-});
-
 // الحصول على علاقات الراوي
 app.get('/api/narrators/:id/relations', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // التحقق من صحة UUID
     if (!isValidUUID(id)) {
       return res.status(400).json({ error: 'معرف الراوي غير صالح' });
     }
@@ -994,7 +1190,7 @@ app.get('/api/hadiths/:id', async (req, res) => {
   }
 });
 
-// إضافة حديث جديد
+// إضافة حديث جديد - محدث ليدعم hadithType
 app.post('/api/hadiths', async (req, res) => {
   try {
     const { 
@@ -1005,15 +1201,14 @@ app.post('/api/hadiths', async (req, res) => {
       sanad, 
       matn, 
       musnadSahabiId,
-      narrators 
+      narrators,
+      hadithType = 'marfu' // القيمة الافتراضية
     } = req.body;
     
-    // التحقق من صحة UUID للراوي الصحابي
     if (musnadSahabiId && !isValidUUID(musnadSahabiId)) {
       return res.status(400).json({ error: 'معرف الصحابي غير صالح' });
     }
     
-    // التحقق من صحة UUIDs للرواة
     if (narrators && Array.isArray(narrators)) {
       for (const narrator of narrators) {
         if (narrator.narratorId && !isValidUUID(narrator.narratorId)) {
@@ -1031,6 +1226,7 @@ app.post('/api/hadiths', async (req, res) => {
         sanad,
         matn,
         musnadSahabiId,
+        hadithType, // إضافة نوع الحديث
         narrators: {
           create: narrators
         }
@@ -1073,7 +1269,7 @@ app.post('/api/hadiths', async (req, res) => {
   }
 });
 
-// استيراد مجموعة من الأحاديث
+// استيراد مجموعة من الأحاديث - محدث ليدعم hadithType
 app.post('/api/hadiths/batch', async (req, res) => {
   try {
     const { hadiths } = req.body;
@@ -1087,24 +1283,20 @@ app.post('/api/hadiths/batch', async (req, res) => {
     const errors: string[] = [];
     const createdHadiths: any[] = [];
     
-    // معالجة كل حديث على حدة
     for (const hadith of hadiths) {
       try {
-        // التحقق من وجود البيانات الأساسية
         if (!hadith.sourceId || !hadith.matn) {
           failed++;
           errors.push(`حديث بدون معرف المصدر أو المتن: ${hadith.hadithNumber || 'غير معروف'}`);
           continue;
         }
         
-        // التحقق من صحة UUIDs
         if (hadith.musnadSahabiId && !isValidUUID(hadith.musnadSahabiId)) {
           failed++;
           errors.push(`معرف صحابي غير صالح في حديث: ${hadith.hadithNumber || 'غير معروف'}`);
           continue;
         }
         
-        // إضافة الحديث
         const createdHadith = await prisma.hadith.create({
           data: {
             sourceId: Number(hadith.sourceId),
@@ -1113,20 +1305,18 @@ app.post('/api/hadiths/batch', async (req, res) => {
             hadithNumber: hadith.hadithNumber || '',
             sanad: hadith.sanad || '',
             matn: hadith.matn,
-            musnadSahabiId: hadith.musnadSahabiId || undefined
+            musnadSahabiId: hadith.musnadSahabiId || undefined,
+            hadithType: hadith.hadithType || 'marfu' // إضافة نوع الحديث مع قيمة افتراضية
           }
         });
         
-        // إضافة الرواة إذا كانوا موجودين
         if (hadith.narrators && Array.isArray(hadith.narrators) && hadith.narrators.length > 0) {
-          // تعريف واجهة لهيكل البيانات
           interface NarratorConnection {
             narratorId: string;
             orderInChain: number;
             narrationType: string | null;
           }
 
-          // التحقق من صحة UUIDs للرواة
           let validNarrators = true;
           for (const n of hadith.narrators) {
             if (n.narratorId && !isValidUUID(n.narratorId)) {
@@ -1142,7 +1332,6 @@ app.post('/api/hadiths/batch', async (req, res) => {
               narrationType: n.narrationType || null
             }));
             
-            // تحديد نوع المعامل nc
             await prisma.hadithNarrator.createMany({
               data: narratorConnections.map((nc: NarratorConnection) => ({
                 ...nc,
@@ -1199,7 +1388,10 @@ app.use('*', (req, res) => {
       'PUT /api/narrators/:id',
       'DELETE /api/narrators/:id',
       'GET /api/narrators/:id/hadiths',
-      'GET /api/narrators/:id/musnad', // ✅ إضافة المسند للقائمة
+      'GET /api/narrators/:id/musnad', // مرفوع
+      'GET /api/narrators/:id/mawquf', // جديد - موقوف
+      'GET /api/narrators/:id/maqtu',  // جديد - مقطوع
+      'GET /api/narrators/:id/hadith-stats', // جديد - إحصائيات
       'GET /api/narrators/:id/relations',
       'GET /api/narrators/search',
       'GET /api/hadiths/search',
@@ -1229,7 +1421,10 @@ async function startServer() {
       console.log(`   • PUT  /api/narrators/:id - تحديث راوي`);
       console.log(`   • DELETE /api/narrators/:id - حذف راوي`);
       console.log(`   • GET  /api/narrators/:id/hadiths - أحاديث راوي محدد`);
-      console.log(`   • GET  /api/narrators/:id/musnad - مسند الراوي`); // ✅ إضافة المسند
+      console.log(`   • GET  /api/narrators/:id/musnad - مسند الراوي (مرفوع)`);
+      console.log(`   • GET  /api/narrators/:id/mawquf - موقوفات الراوي`); // جديد
+      console.log(`   • GET  /api/narrators/:id/maqtu - مقطوعات الراوي`);   // جديد
+      console.log(`   • GET  /api/narrators/:id/hadith-stats - إحصائيات الأحاديث`); // جديد
       console.log(`   • GET  /api/narrators/:id/relations - علاقات راوي محدد`);
       console.log(`   • GET  /api/narrators/search - البحث عن رواة`);
       console.log(`   • GET  /api/hadiths/search - البحث في الأحاديث`);
@@ -1242,11 +1437,5 @@ async function startServer() {
     process.exit(1);
   }
 }
-
-// ⚠️ إزالة endpoint المسند المكرر من هنا
-// process.on('uncaughtException', (error) => { // هذا الجزء مكرر ومكانه في الأعلى
-// console.error('💥 Uncaught Exception:', error);
-// process.exit(1);
-// });
 
 startServer();

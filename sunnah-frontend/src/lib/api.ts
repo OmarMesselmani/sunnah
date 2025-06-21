@@ -1,7 +1,8 @@
 // File: sunnah-frontend/src/lib/api.ts
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// تعديل API_BASE_URL لاستخدام المتغير البيئي إذا كان موجوداً
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -561,5 +562,172 @@ export const formatNarratorInfo = (narrator: Narrator | null): string => {
   
   return parts.join(' ');
 };
+
+// تعديل الدالة الموجودة لتصبح خاصة بالمرفوع فقط
+export async function fetchNarratorMusnad(narratorId: string, page: number = 1, limit: number = 10) {
+  try {
+    if (!narratorId || !isValidUUID(narratorId)) {
+      throw new Error('معرف الراوي غير صالح');
+    }
+
+    const url = `${API_BASE_URL}/narrators/${narratorId}/musnad?page=${page}&limit=${limit}`;
+    console.log('🔗 جاري طلب المسند من:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      cache: 'no-store', 
+    });
+
+    console.log('📡 حالة الاستجابة:', response.status, response.statusText);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        console.error('Server error response data:', errorData);
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        console.warn('لا يمكن قراءة رسالة الخطأ من الخادم:', e);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('✅ تم جلب بيانات المسند بنجاح:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ خطأ في جلب أحاديث المسند:', error);
+    
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error('فشل الاتصال بالخادم. تأكد من تشغيل الخادم المحلي');
+    } else if (error.message.includes('404')) {
+      throw error; 
+    } else if (error.message.includes('500')) {
+      throw new Error('خطأ داخلي في الخادم عند جلب المسند');
+    }
+    throw error; 
+  }
+}
+
+// دالة جديدة لجلب الأحاديث الموقوفة
+export async function fetchNarratorMawquf(narratorId: string, page: number = 1, limit: number = 10) {
+  try {
+    if (!narratorId || !isValidUUID(narratorId)) {
+      throw new Error('معرف الراوي غير صالح');
+    }
+
+    const url = `${API_BASE_URL}/narrators/${narratorId}/mawquf?page=${page}&limit=${limit}`;
+    console.log('🔗 جاري طلب الموقوفات من:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      cache: 'no-store', 
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        console.warn('لا يمكن قراءة رسالة الخطأ من الخادم:', e);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('✅ تم جلب الموقوفات بنجاح:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ خطأ في جلب الموقوفات:', error);
+    throw error; 
+  }
+}
+
+// دالة جديدة لجلب الأحاديث المقطوعة
+export async function fetchNarratorMaqtu(narratorId: string, page: number = 1, limit: number = 10) {
+  try {
+    if (!narratorId || !isValidUUID(narratorId)) {
+      throw new Error('معرف الراوي غير صالح');
+    }
+
+    const url = `${API_BASE_URL}/narrators/${narratorId}/maqtu?page=${page}&limit=${limit}`;
+    console.log('🔗 جاري طلب المقطوعات من:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      cache: 'no-store', 
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        console.warn('لا يمكن قراءة رسالة الخطأ من الخادم:', e);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('✅ تم جلب المقطوعات بنجاح:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ خطأ في جلب المقطوعات:', error);
+    throw error; 
+  }
+}
+
+// دالة جديدة لجلب إحصائيات أنواع الأحاديث
+export async function fetchNarratorHadithStats(narratorId: string) {
+  try {
+    if (!narratorId || !isValidUUID(narratorId)) {
+      throw new Error('معرف الراوي غير صالح');
+    }
+
+    const url = `${API_BASE_URL}/narrators/${narratorId}/hadith-stats`;
+    console.log('🔗 جاري طلب إحصائيات الأحاديث من:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      cache: 'no-store', 
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        console.warn('لا يمكن قراءة رسالة الخطأ من الخادم:', e);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('✅ تم جلب إحصائيات الأحاديث بنجاح:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ خطأ في جلب إحصائيات الأحاديث:', error);
+    throw error; 
+  }
+}
 
 export default api;

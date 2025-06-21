@@ -11,6 +11,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// تعريف أنواع الأحاديث
+enum HadithType {
+  marfu   // مرفوع
+  mawquf  // موقوف  
+  maqtu   // مقطوع
+}
+
 // نموذج الرواة - تم تحويل ID إلى UUID
 model Narrator {
   id               String   @id @default(uuid()) @db.VarChar(36)
@@ -94,18 +101,19 @@ model Chapter {
   @@index([bookId])
 }
 
-// نموذج الأحاديث
+// نموذج الأحاديث - تم إضافة نوع الحديث
 model Hadith {
-  id             Int      @id @default(autoincrement())
+  id             Int         @id @default(autoincrement())
   sourceId       Int
   bookId         Int?
   chapterId      Int?
-  hadithNumber   String   @db.VarChar(50)
-  sanad          String   @db.Text
-  matn           String   @db.Text
-  musnadSahabiId String?  @db.VarChar(36)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  hadithNumber   String      @db.VarChar(50)
+  sanad          String      @db.Text
+  matn           String      @db.Text
+  musnadSahabiId String?     @db.VarChar(36)
+  hadithType     HadithType  @default(marfu) // نوع الحديث: مرفوع، موقوف، مقطوع
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   // العلاقات
   source        Source           @relation(fields: [sourceId], references: [id])
@@ -117,6 +125,7 @@ model Hadith {
 
   @@index([sourceId])
   @@index([musnadSahabiId])
+  @@index([hadithType]) // فهرس جديد لتسريع البحث حسب نوع الحديث
   @@fulltext([matn])
 }
 
